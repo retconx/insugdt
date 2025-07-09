@@ -13,11 +13,11 @@ class InsulinplanFehler(Exception):
         return "Insulinfehler: " + self.message
 
 class Insulinplan:
-    def __init__(self, blutzuckerZiel:float, beFaktoren:list, korrektur:float, einheit:class_enums.Blutzuckereinheit):
+    def __init__(self, blutzuckerZiel:float, beFaktoren:list, korrektur:float, blutzuckereinheit:class_enums.Blutzuckereinheit):
         self.blutzuckerZiel = blutzuckerZiel
         self.beFaktoren = beFaktoren
         self.korrektur = korrektur
-        self.einheit = einheit
+        self.blutzuckereinheit = blutzuckereinheit
         self.untersteStufe = 90
         self.anzahlStufen = 8
         self.stufengroesse = 30
@@ -82,15 +82,20 @@ class Insulinplan:
                 else:
                     insulinmengen.append(0)
             if stufe == 0:
-                blutzuckerbereich = "Bis " + str(self.untersteStufe).replace(".", ",").replace(",0", "")
+                blutzuckerbereich = "Bis " + "{:.1f}".format(self.untersteStufe).replace(".", ",")
+                if self.blutzuckereinheit == class_enums.Blutzuckereinheit.MG_DL:
+                     blutzuckerbereich = "Bis " + "{:.0f}".format(self.untersteStufe)
             elif stufe == self.anzahlStufen - 1:
-                blutzuckerbereich = "Ab " + str(self.untersteStufe + (stufe -1) * self.stufengroesse).replace(".", ",").replace(",0", "")
+                blutzuckerbereich = "Ab " + "{:.1f}".format(self.untersteStufe + (stufe -1) * self.stufengroesse).replace(".", ",")
+                if self.blutzuckereinheit == class_enums.Blutzuckereinheit.MG_DL:
+                    blutzuckerbereich = "Ab " + "{:.0f}".format(self.untersteStufe + (stufe -1) * self.stufengroesse)
             else:
-                untererWert = str(self.untersteStufe + (stufe - 1) * self.stufengroesse).replace(".", ",").replace(",0", "")
-                if self.einheit == class_enums.Blutzuckereinheit.MG_DL:
-                    obererWert = str(self.untersteStufe + stufe * self.stufengroesse - 1).replace(".", ",").replace(",0", "")
+                if self.blutzuckereinheit == class_enums.Blutzuckereinheit.MG_DL:
+                    untererWert = "{:.0f}".format(self.untersteStufe + (stufe - 1) * self.stufengroesse)
+                    obererWert = "{:.0f}".format(self.untersteStufe + stufe * self.stufengroesse - 1)
                 else:
-                    obererWert = str(self.untersteStufe + stufe * self.stufengroesse - 0.1).replace(".", ",").replace(",0", "")
+                    untererWert = "{:.1f}".format(self.untersteStufe + (stufe - 1) * self.stufengroesse).replace(".", ",")
+                    obererWert = "{:.1f}".format(self.untersteStufe + stufe * self.stufengroesse - 0.1).replace(".", ",")
                 blutzuckerbereich =  untererWert + " - " + obererWert
             plan.append([blutzuckerbereich, insulinmengen.copy(), insulinmengentagessumme])
         return plan

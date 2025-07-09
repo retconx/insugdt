@@ -1,9 +1,11 @@
 import configparser, os, gdttoolsL, re, sys
+import class_enums
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QDialogButtonBox,
     QDialog,
     QVBoxLayout,
+    QHBoxLayout,
     QGridLayout,
     QGroupBox,
     QLabel,
@@ -11,7 +13,8 @@ from PySide6.QtWidgets import (
     QPushButton,
     QCheckBox,
     QFileDialog,
-    QMessageBox
+    QMessageBox,
+    QRadioButton
 )
 
 class EinstellungenAllgemein(QDialog):
@@ -21,6 +24,9 @@ class EinstellungenAllgemein(QDialog):
         self.fontNormal.setBold(False)
         self.fontBold = QFont()
         self.fontBold.setBold(True)
+        self.fontItalic = QFont()
+        self.fontItalic.setItalic(True)
+        self.fontItalic.setBold(False)
 
         #config.ini lesen
         configIni = configparser.ConfigParser()
@@ -37,6 +43,9 @@ class EinstellungenAllgemein(QDialog):
             self.vorlagenverzeichnis = configIni["Allgemein"]["vorlagenverzeichnis"]
         self.autoupdate = configIni["Allgemein"]["autoupdate"] == "True"
         self.updaterpfad = configIni["Allgemein"]["updaterpfad"]
+        self.dokuverzeichnis = configIni["Allgemein"]["dokuverzeichnis"]
+        self.vorherigeDokuLaden = configIni["Allgemein"]["vorherigedokuladen"] == "1"
+        self.blutzuckereinheit = class_enums.Blutzuckereinheit(configIni["Allgemein"]["blutzuckereinheit"])
 
         self.setWindowTitle("Allgemeine Einstellungen")
         self.setMinimumWidth(500)
@@ -50,7 +59,8 @@ class EinstellungenAllgemein(QDialog):
         if len(lizenzschluessel) != 29:
             lizenzschluessel = gdttoolsL.GdtToolsLizenzschluessel.dekrypt(lizenzschluessel)
 
-        dialogLayoutV = QVBoxLayout()
+        dialogLayoutV = QVBoxLayout() 
+
         # Groupox Name der Einrichtung
         groupboxEinrichtung = QGroupBox("Name der Einrichtung")
         groupboxEinrichtung.setFont(self.fontBold)
@@ -60,6 +70,47 @@ class EinstellungenAllgemein(QDialog):
         groupboxLayoutEinrichtung = QVBoxLayout()
         groupboxLayoutEinrichtung.addWidget(self.lineEditEinrichtungsname)
         groupboxEinrichtung.setLayout(groupboxLayoutEinrichtung)
+
+        # Groupbox Standardblutzuckereinheit
+        groupboxStandardBlutzuckereinheit = QGroupBox("Standard-Blutzuckereinheit")
+        groupboxStandardBlutzuckereinheit.setFont(self.fontBold)    
+        self.radioButtonBlutzuckereinheitMg = QRadioButton(class_enums.Blutzuckereinheit.MG_DL.value)
+        self.radioButtonBlutzuckereinheitMg.setFont(self.fontNormal)
+        self.radioButtonBlutzuckereinheitMMol = QRadioButton(class_enums.Blutzuckereinheit.MMOL_L.value)
+        self.radioButtonBlutzuckereinheitMMol.setFont(self.fontNormal)
+        if self.blutzuckereinheit == class_enums.Blutzuckereinheit.MG_DL:
+            self.radioButtonBlutzuckereinheitMg.setChecked(True)
+        else:
+            self.radioButtonBlutzuckereinheitMMol.setChecked(True)
+        groupboxLayoutStandardBlutzuckereinheit = QHBoxLayout()
+        groupboxLayoutStandardBlutzuckereinheit.addWidget(self.radioButtonBlutzuckereinheitMg)
+        groupboxLayoutStandardBlutzuckereinheit.addWidget(self.radioButtonBlutzuckereinheitMMol)
+        groupboxStandardBlutzuckereinheit.setLayout(groupboxLayoutStandardBlutzuckereinheit)
+
+        # Groupbox Dokumentationsverwaltung
+        groupboxDokumentationsverwaltung = QGroupBox("Dokumentationsverwaltung")
+        groupboxDokumentationsverwaltung.setFont(self.fontBold)
+        labelArchivierungsverzeichnis = QLabel("Archivierungsverzeichnis:")
+        labelArchivierungsverzeichnis.setFont(self.fontNormal)
+        self.lineEditArchivierungsverzeichnis= QLineEdit(self.dokuverzeichnis)
+        self.lineEditArchivierungsverzeichnis.setFont(self.fontNormal)
+        buttonDurchsuchenArchivierungsverzeichnis = QPushButton("Durchsuchen")
+        buttonDurchsuchenArchivierungsverzeichnis.setFont(self.fontNormal)
+        buttonDurchsuchenArchivierungsverzeichnis.clicked.connect(self.durchsuchenArchivierungsverzeichnis) # type: ignore
+        groupboxLayoutArchivierungsverzeichnis = QGridLayout()
+        groupboxLayoutArchivierungsverzeichnis.addWidget(labelArchivierungsverzeichnis, 0, 0, 1, 2)
+        groupboxLayoutArchivierungsverzeichnis.addWidget(self.lineEditArchivierungsverzeichnis, 1, 0)
+        groupboxLayoutArchivierungsverzeichnis.addWidget(buttonDurchsuchenArchivierungsverzeichnis, 1, 1)
+        labelVorherigeDokuLaden = QLabel("Vorherige Dokumentation laden (falls vorhanden)")
+        labelVorherigeDokuLaden.setFont(self.fontNormal)
+        labelVorrang = QLabel("Diese Funktion hat Vorrang vor einer Standardvorlage.")
+        labelVorrang.setFont(self.fontItalic)
+        self.checkboxVorherigeDokuLaden = QCheckBox()
+        self.checkboxVorherigeDokuLaden.setChecked(self.vorherigeDokuLaden)
+        groupboxLayoutArchivierungsverzeichnis.addWidget(labelVorherigeDokuLaden, 2, 0)
+        groupboxLayoutArchivierungsverzeichnis.addWidget(self.checkboxVorherigeDokuLaden, 2, 1)
+        groupboxLayoutArchivierungsverzeichnis.addWidget(labelVorrang, 3, 0)
+        groupboxDokumentationsverwaltung.setLayout(groupboxLayoutArchivierungsverzeichnis)
 
         # Groupbox PDF-Erstellung
         groupboxPdfErstellung = QGroupBox("PDF-Erstellung")
@@ -141,6 +192,8 @@ class EinstellungenAllgemein(QDialog):
         groupBoxUpdates.setLayout(groupBoxUpdatesLayoutG)
 
         dialogLayoutV.addWidget(groupboxEinrichtung)
+        dialogLayoutV.addWidget(groupboxStandardBlutzuckereinheit)
+        dialogLayoutV.addWidget(groupboxDokumentationsverwaltung)
         dialogLayoutV.addWidget(groupboxPdfErstellung)
         dialogLayoutV.addWidget(groupboxVorlagen)
         dialogLayoutV.addWidget(groupBoxUpdates)
@@ -148,6 +201,19 @@ class EinstellungenAllgemein(QDialog):
         dialogLayoutV.setContentsMargins(10, 10, 10, 10)
         dialogLayoutV.setSpacing(20)
         self.setLayout(dialogLayoutV)
+
+    def durchsuchenArchivierungsverzeichnis(self):
+        fd = QFileDialog(self)
+        fd.setFileMode(QFileDialog.FileMode.Directory)
+        fd.setWindowTitle("Dokumentationsarchivierungsverzeichnis")
+        fd.setDirectory(self.dokuverzeichnis)
+        fd.setModal(True)
+        fd.setLabelText(QFileDialog.DialogLabel.Accept, "Ok")
+        fd.setLabelText(QFileDialog.DialogLabel.Reject, "Abbrechen")
+        if fd.exec() == 1:
+            self.dokuverzeichnis = fd.directory()
+            self.lineEditArchivierungsverzeichnis.setText(os.path.abspath(fd.directory().path()))
+            self.lineEditArchivierungsverzeichnis.setToolTip(os.path.abspath(fd.directory().path()))
 
     def checkboxPdfErstellenChanged(self, newState):
         if not newState:

@@ -18,11 +18,9 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QGridLayout,
     QRadioButton,
-    QButtonGroup,
     QWidget,
     QLabel, 
     QLineEdit,
-    QDateEdit,
     QMessageBox,
     QTextEdit,
     QStatusBar,
@@ -92,7 +90,7 @@ class MainWindow(QMainWindow):
         top = screenHoehe / 2 - mainwindowHoehe / 2
         self.setGeometry(left, top, mainwindowBreite, mainwindowHoehe)
 
-    def setPreFormularXml(self, xmlDateipdad:str):
+    def setPreFormularXml(self, xmlDateipdad:str, vorherigerPlan = False):
         try:
             self.setCursor(Qt.CursorShape.WaitCursor)
             baum = ElementTree.parse(xmlDateipdad)
@@ -101,33 +99,44 @@ class MainWindow(QMainWindow):
             blutzuckerziel = berechnungsparameterElement.findtext("blutzuckerziel") # type: ignore
             korrektur = berechnungsparameterElement.findtext("korrektur") # type: ignore
             einheit = berechnungsparameterElement.findtext("einheit") # type: ignore
+            self.blutzuckereinheit = class_enums.Blutzuckereinheit(einheit)
             beFaktorenElement = berechnungsparameterElement.find("befaktoren") # type: ignore
             beFaktorenListe = [beFaktorenElement.findtext("morgens"), beFaktorenElement.findtext("mittags"), beFaktorenElement.findtext("abends")] # type: ignore
             anzahlblutzuckerbereichsstufen = berechnungsparameterElement.findtext("anzahlblutzuckerbereichsstufen") # type: ignore
             untersteblutzuckerstufe = berechnungsparameterElement.findtext("untersteblutzuckerstufe") # type: ignore
+            bereichsstuferngroesse = berechnungsparameterElement.findtext("bereichsstuferngroesse") # type: ignore
             mahlzeiteninsulinElement = insulinplanElement.find("mahlzeiteninsulin") # type: ignore
             miName = mahlzeiteninsulinElement.findtext("name") # type: ignore
             basalinsulinElement = insulinplanElement.find("basalinsulin") # type: ignore
             biName = basalinsulinElement.findtext("name") # type: ignore
             biDosis = basalinsulinElement.findtext("dosis") # type: ignore
-            biVerabreichung = basalinsulinElement.findtext("verabreichung") # type: ignore
+            biVerabreichung = basalinsulinElement.findtext("verabreichungsintervall") # type: ignore
             self.lineEditBlutzuckerziel.setText(str(blutzuckerziel).replace(".", ","))
             self.lineEditKorrektur.setText(str(korrektur).replace(".", ","))
             self.labelEinheitBlutuckerziel.setText(str(einheit))
             self.labelEinheitKorrektur.setText(str(einheit))
-            self.blutzuckereinheit = class_enums.Blutzuckereinheit(einheit)
             for i in range(3):
                 self.lineEditBeFaktoren[i].setText(str(beFaktorenListe[i]).replace(".", ","))
             self.lineEditAnzahlBlutzuckerbereichsstufen.setText(str(anzahlblutzuckerbereichsstufen))
             self.lineEditUntersteBereichsstufe.setText(str(untersteblutzuckerstufe))
+            self.labelEinheitUntersteBereichsstufe.setText(str(einheit))
+            self.lineEditBereichsstufengroesse.setText(bereichsstuferngroesse)
+            self.labelEinheitBereichsstufengroesse.setText(str(einheit))
+            if self.blutzuckereinheit == class_enums.Blutzuckereinheit.MG_DL:
+                self.radioButtonEinheitMg.setChecked(True)
+            else: 
+                self.radioButtonEinheitMmol.setChecked(True)
             self.lineEditMiName.setText(str(miName))
             self.lineEditBiName.setText(str(biName))
             self.lineEditBiDosis.setText(str(biDosis))
-            self.radioButtonTaeglich.setChecked(biVerabreichung == class_enums.Verabreichungsintervall.TÄGLICH)
+            self.radioButtonTaeglich.setChecked(biVerabreichung == class_enums.Verabreichungsintervall.TÄGLICH.value[:7])
             logger.logger.info("Eingabeformular vor-ausgefüllt")
             self.setCursor(Qt.CursorShape.ArrowCursor)
         except Exception as e:
-            mb = QMessageBox(QMessageBox.Icon.Warning, "Hinweis von InsuGDT", "Fehler beim Laden der Vorlage (" + xmlDateipdad + "): " + e.args[1], QMessageBox.StandardButton.Ok)
+            if vorherigerPlan:
+                raise
+            else:
+                mb = QMessageBox(QMessageBox.Icon.Warning, "Hinweis von InsuGDT", "Fehler beim Laden der Vorlage (" + xmlDateipdad + "): " + e.args[1], QMessageBox.StandardButton.Ok)
             mb.exec()
     
     def __init__(self):
@@ -190,6 +199,9 @@ class MainWindow(QMainWindow):
         self.eulagelesen = self.configIni["Allgemein"]["eulagelesen"] == "True"
         self.autoupdate = self.configIni["Allgemein"]["autoupdate"] == "True"
         self.updaterpfad = self.configIni["Allgemein"]["updaterpfad"]
+        self.dokuVerzeichnis = self.configIni["Allgemein"]["dokuverzeichnis"]
+        self.vorherigeDokuLaden = (self.configIni["Allgemein"]["vorherigedokuladen"] == "1")
+        self.blutzuckereinheit = class_enums.Blutzuckereinheit(self.configIni["Allgemein"]["blutzuckereinheit"])
 
         # Nachträglich hinzufefügte Options
         # /Nachträglich hinzufefügte Options
@@ -215,34 +227,34 @@ class MainWindow(QMainWindow):
         ## /Nur mit Lizenz
 
         # Prüfen, ob EULA gelesen
-        # if not self.eulagelesen:
-        #     de = dialogEula.Eula()
-        #     de.exec()
-        #     if de.checkBoxZustimmung.isChecked():
-        #         self.eulagelesen = True
-        #         self.configIni["Allgemein"]["eulagelesen"] = "True"
-        #         with open(os.path.join(self.configPath, "config.ini"), "w") as configfile:
-        #             self.configIni.write(configfile)
-        #         logger.logger.info("EULA zugestimmt")
-        #     else:
-        #         mb = QMessageBox(QMessageBox.Icon.Information, "Hinweis von InsuGDT", "Ohne Zustimmung der Lizenzvereinbarung kann InsuGDT nicht gestartet werden.", QMessageBox.StandardButton.Ok)
-        #         mb.exec()
-        #         sys.exit()
+        if not self.eulagelesen:
+            de = dialogEula.Eula()
+            de.exec()
+            if de.checkBoxZustimmung.isChecked():
+                self.eulagelesen = True
+                self.configIni["Allgemein"]["eulagelesen"] = "True"
+                with open(os.path.join(self.configPath, "config.ini"), "w") as configfile:
+                    self.configIni.write(configfile)
+                logger.logger.info("EULA zugestimmt")
+            else:
+                mb = QMessageBox(QMessageBox.Icon.Information, "Hinweis von InsuGDT", "Ohne Zustimmung der Lizenzvereinbarung kann InsuGDT nicht gestartet werden.", QMessageBox.StandardButton.Ok)
+                mb.exec()
+                sys.exit()
 
         # Grundeinstellungen bei erstem Start
-        # if ersterStart:
-        #     logger.logger.info("Erster Start")
-        #     mb = QMessageBox(QMessageBox.Icon.Question, "Hinweis von InsuGDT", "Vermutlich starten Sie InsuGDT das erste Mal auf diesem PC.\nMöchten Sie jetzt die Grundeinstellungen vornehmen?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        #     mb.setDefaultButton(QMessageBox.StandardButton.Yes)
-        #     if mb.exec() == QMessageBox.StandardButton.Yes:
-        #         ## Nur mit Lizenz
-        #         self.einstellungenLanrLizenzschluessel(False, False)
-        #         ## /Nur mit Lizenz
-        #         self.einstellungenGdt(False, False)
-        #         self.einstellungenAllgemein(False, False)
-        #         mb = QMessageBox(QMessageBox.Icon.Warning, "Hinweis von InsuGDT", "Die Ersteinrichtung ist abgeschlossen. InsuGDT wird beendet.", QMessageBox.StandardButton.Ok)
-        #         mb.exec()
-        #         sys.exit()
+        if ersterStart:
+            logger.logger.info("Erster Start")
+            mb = QMessageBox(QMessageBox.Icon.Question, "Hinweis von InsuGDT", "Vermutlich starten Sie InsuGDT das erste Mal auf diesem PC.\nMöchten Sie jetzt die Grundeinstellungen vornehmen?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            mb.setDefaultButton(QMessageBox.StandardButton.Yes)
+            if mb.exec() == QMessageBox.StandardButton.Yes:
+                ## Nur mit Lizenz
+                self.einstellungenLanrLizenzschluessel(False, False)
+                ## /Nur mit Lizenz
+                self.einstellungenGdt(False, False)
+                self.einstellungenAllgemein(False, False)
+                mb = QMessageBox(QMessageBox.Icon.Warning, "Hinweis von InsuGDT", "Die Ersteinrichtung ist abgeschlossen. InsuGDT wird beendet.", QMessageBox.StandardButton.Ok)
+                mb.exec()
+                sys.exit()
 
         # Version vergleichen und gegebenenfalls aktualisieren
         configIniBase = configparser.ConfigParser()
@@ -309,7 +321,6 @@ class MainWindow(QMainWindow):
         self.fontBold.setBold(True)
         self.fontKlein = QFont()
         self.fontKlein.setPixelSize(10)
-        self.blutzuckereinheit = class_enums.Blutzuckereinheit.MG_DL
 
         # GDT-Datei laden
         gd = gdt.GdtDatei()
@@ -350,6 +361,10 @@ class MainWindow(QMainWindow):
             mainSpaltenlayout = QHBoxLayout()
             mainLayoutLinkeSpalte = QVBoxLayout()
             mainLayoutRechteSpalte = QVBoxLayout()
+
+            self.pushButtonVorausgefuellt = QPushButton()
+            self.pushButtonVorausgefuellt.setFont(self.fontNormal)
+            self.pushButtonVorausgefuellt.setStyleSheet("color:rgb(0,0,200)")
             
             # Groupbox Berechnungsparameter
             berechnungsparameterLayout = QGridLayout()
@@ -357,7 +372,7 @@ class MainWindow(QMainWindow):
             groupBoxBerechnungsparameter.setFont(self.fontBold)
             labelBlutzuckerziel= QLabel("Blutzuckerziel")
             labelBlutzuckerziel.setFont(self.fontNormal)
-            self.lineEditBlutzuckerziel = QLineEdit("120")
+            self.lineEditBlutzuckerziel = QLineEdit("110")
             self.lineEditBlutzuckerziel.setFont(self.fontNormal)
             self.labelEinheitBlutuckerziel = QLabel(self.blutzuckereinheit.value)
             self.labelEinheitBlutuckerziel.setFont(self.fontNormal)
@@ -389,10 +404,14 @@ class MainWindow(QMainWindow):
             labelUntersteBereichsstufe.setFont(self.fontNormal)
             self.lineEditUntersteBereichsstufe = QLineEdit("90")
             self.lineEditUntersteBereichsstufe.setFont(self.fontNormal)
+            self.labelEinheitUntersteBereichsstufe = QLabel(self.blutzuckereinheit.value)
+            self.labelEinheitUntersteBereichsstufe.setFont(self.fontNormal)
             labelBereichsstufengroesse = QLabel("Bereichsstufengröße")
             labelBereichsstufengroesse.setFont(self.fontNormal)
             self.lineEditBereichsstufengroesse = QLineEdit("30")
             self.lineEditBereichsstufengroesse.setFont(self.fontNormal)
+            self.labelEinheitBereichsstufengroesse = QLabel(self.blutzuckereinheit.value)
+            self.labelEinheitBereichsstufengroesse.setFont(self.fontNormal)
             groupBoxBerechnungsparameter.setLayout(berechnungsparameterLayout)
             berechnungsparameterLayout.addWidget(labelBlutzuckerziel, 0, 0, 1, 1)
             berechnungsparameterLayout.addWidget(self.lineEditBlutzuckerziel, 0, 1, 1, 1)
@@ -406,13 +425,15 @@ class MainWindow(QMainWindow):
             beFaktorenLayout.addWidget(labelAbends, 0, 2)
             for i in range(3):
                 beFaktorenLayout.addWidget(self.lineEditBeFaktoren[i], 1, i)
-            berechnungsparameterLayout.addLayout(beFaktorenLayout, 2, 1, 1, 1)
+            berechnungsparameterLayout.addLayout(beFaktorenLayout, 2, 1, 1, 2)
             berechnungsparameterLayout.addWidget(labelAnzahlBlutzuckerereichsstufen, 3, 0, 1, 1)
-            berechnungsparameterLayout.addWidget(self.lineEditAnzahlBlutzuckerbereichsstufen, 3, 1, 1, 1)
+            berechnungsparameterLayout.addWidget(self.lineEditAnzahlBlutzuckerbereichsstufen, 3, 1, 1, 2)
             berechnungsparameterLayout.addWidget(labelUntersteBereichsstufe, 4, 0, 1, 1)
             berechnungsparameterLayout.addWidget(self.lineEditUntersteBereichsstufe, 4, 1, 1, 1)
+            berechnungsparameterLayout.addWidget(self.labelEinheitUntersteBereichsstufe, 4, 2, 1, 1)
             berechnungsparameterLayout.addWidget(labelBereichsstufengroesse, 5, 0, 1, 1)
             berechnungsparameterLayout.addWidget(self.lineEditBereichsstufengroesse, 5, 1, 1, 1)
+            berechnungsparameterLayout.addWidget(self.labelEinheitBereichsstufengroesse, 5, 2, 1, 1)
 
             # Groupbox Mahlzeiteninsulin
             groupBoxMahlzeiteninsulin = QGroupBox("Mahlzeiteninsulin")
@@ -450,7 +471,7 @@ class MainWindow(QMainWindow):
             self.radioButtonTaeglich.setChecked(True)
             groupBoxBasalinsulin.setLayout(basalinsulinLayout)
             basalinsulinLayout.addWidget(labelBiName, 0, 0, 1, 1)
-            basalinsulinLayout.addWidget(self.lineEditBiName, 0, 1, 1, 1)
+            basalinsulinLayout.addWidget(self.lineEditBiName, 0, 1, 1, 2)
             basalinsulinLayout.addWidget(labelBiDosis, 1, 0, 1, 1)
             basalinsulinLayout.addWidget(self.lineEditBiDosis, 1, 1, 1, 1)
             basalinsulinLayout.addWidget(labelBiEinheit, 1, 2, 1, 1)
@@ -458,6 +479,24 @@ class MainWindow(QMainWindow):
             verabreichungLayout.addWidget(self.radioButtonTaeglich)
             verabreichungLayout.addWidget(self.radioButtonWoechentlich)
             basalinsulinLayout.addLayout(verabreichungLayout, 2, 1, 1, 1)
+
+            # Groupbox Blutzuckereinheit
+            groupBoxBlutzuckereinheit = QGroupBox("Blutzuckereinheit")
+            groupBoxBlutzuckereinheit.setFont(self.fontBold)
+            blutzuckereinheitLayout = QHBoxLayout()
+            self.radioButtonEinheitMg = QRadioButton(class_enums.Blutzuckereinheit.MG_DL.value)
+            self.radioButtonEinheitMg.setFont(self.fontNormal)
+            self.radioButtonEinheitMg.clicked.connect(self.radioButtonEinheitClicked)
+            self.radioButtonEinheitMg.setChecked(True)
+            self.radioButtonEinheitMmol = QRadioButton(class_enums.Blutzuckereinheit.MMOL_L.value)
+            self.radioButtonEinheitMmol.setFont(self.fontNormal)
+            self.radioButtonEinheitMmol.clicked.connect(self.radioButtonEinheitClicked)
+            self.checkBoxUmrechnen = QCheckBox("Textfeldinhalte umrechnen")
+            self.checkBoxUmrechnen.setFont(self.fontNormal)
+            groupBoxBlutzuckereinheit.setLayout(blutzuckereinheitLayout)
+            blutzuckereinheitLayout.addWidget(self.radioButtonEinheitMg)
+            blutzuckereinheitLayout.addWidget(self.radioButtonEinheitMmol)
+            blutzuckereinheitLayout.addWidget(self.checkBoxUmrechnen)
 
             # Buttons
             buttonLayout = QGridLayout()
@@ -520,9 +559,12 @@ class MainWindow(QMainWindow):
             vorschauLayout.addWidget(self.textEditVorschau)
             groupBoxVorschau.setLayout(vorschauLayout)
             
+            mainLayoutLinkeSpalte.addWidget(self.pushButtonVorausgefuellt)
+            mainLayoutLinkeSpalte.addSpacing(10)
             mainLayoutLinkeSpalte.addWidget(groupBoxBerechnungsparameter)
             mainLayoutLinkeSpalte.addWidget(groupBoxMahlzeiteninsulin)
             mainLayoutLinkeSpalte.addWidget(groupBoxBasalinsulin)
+            mainLayoutLinkeSpalte.addWidget(groupBoxBlutzuckereinheit)
             mainLayoutLinkeSpalte.addLayout(buttonLayout)
             mainLayoutLinkeSpalte.addWidget(groupBoxPatient)
             mainLayoutRechteSpalte.addWidget(groupBoxVorschau)
@@ -555,10 +597,6 @@ class MainWindow(QMainWindow):
             self.widget.setLayout(mainLayoutV)
             self.setCentralWidget(self.widget)
             logger.logger.info("Eingabeformular aufgebaut")
-
-            # Formular ggf. vor-ausfüllen
-            if self.defaultXml != "":
-                self.setPreFormularXml(os.path.join(basedir, self.vorlagenverzeichnis, self.defaultXml))
 
             #Menü
             menubar = self.menuBar()
@@ -649,8 +687,90 @@ class MainWindow(QMainWindow):
                     mb = QMessageBox(QMessageBox.Icon.Warning, "Hinweis von InsuGDT", "Updateprüfung nicht möglich.\nBitte überprüfen Sie Ihre Internetverbindung.", QMessageBox.StandardButton.Ok)
                     mb.exec()
                     logger.logger.warning("Updateprüfung nicht möglich: " + str(e))
+
+            # Formular ggf. vor-ausfüllen
+            pfad = ""
+            if self.vorherigeDokuLaden:
+                datum = str(self.mitVorherigemPlanAusfuellen())
+                if datum != "None":
+                    self.pushButtonVorausgefuellt.setText("Formular ausgefüllt mit letzter Dokumentation vom " + datum[6:8] + "." + datum[4:6] + "." + datum[:4])
+                    self.pushButtonVorausgefuellt.setToolTip("Vorherige Dokumentation wiederherstellen")
+                    pfad = os.path.join(self.dokuVerzeichnis, self.patId, datum + "_" + self.patId + ".igv")
+            if self.defaultXml != "" and pfad == "":
+                self.setPreFormularXml(os.path.join(basedir, self.vorlagenverzeichnis, self.defaultXml))
+                self.pushButtonVorausgefuellt.setText("Formular ausgefüllt mit Standardvorlage: " + self.defaultXml[:-4])
+                self.pushButtonVorausgefuellt.setToolTip("Standardvorlage wiederherstellen")
+                pfad = os.path.join(basedir, self.vorlagenverzeichnis, self.defaultXml)
+            if pfad != "":
+                self.pushButtonVorausgefuellt.setText(self.pushButtonVorausgefuellt.text() + "\n(Zum Wiederherstellen anklicken)")
+                self.pushButtonVorausgefuellt.clicked.connect(lambda checked=False, pfad=pfad: self.pushButtonVorausgefuelltClicked(checked, pfad))
+            else:
+                self.pushButtonVorausgefuellt.setVisible(False)
+
         else:
             sys.exit()
+
+    def pushButtonVorausgefuelltClicked(self, checked, pfad):
+        self.setPreFormularXml(pfad)
+
+    def radioButtonEinheitClicked(self):
+        umrechenfaktor = 1
+        if self.radioButtonEinheitMg.isChecked():
+            if self.checkBoxUmrechnen.isChecked() and self.blutzuckereinheit == class_enums.Blutzuckereinheit.MMOL_L:
+                umrechenfaktor = 1 / 0.0555
+            self.blutzuckereinheit = class_enums.Blutzuckereinheit.MG_DL
+        else:
+            if self.checkBoxUmrechnen.isChecked() and self.blutzuckereinheit == class_enums.Blutzuckereinheit.MG_DL:
+                umrechenfaktor = 0.0555
+            self.blutzuckereinheit = class_enums.Blutzuckereinheit.MMOL_L
+        # Einheiten setzen
+        self.labelEinheitBlutuckerziel.setText(self.blutzuckereinheit.value)
+        self.labelEinheitKorrektur.setText(self.blutzuckereinheit.value)
+        self.labelEinheitUntersteBereichsstufe.setText(self.blutzuckereinheit.value)
+        self.labelEinheitBereichsstufengroesse.setText(self.blutzuckereinheit.value)
+
+        # Umrechnen
+        if self.checkBoxUmrechnen.isChecked():
+            lineEdits = [self.lineEditBlutzuckerziel, self.lineEditKorrektur, self.lineEditUntersteBereichsstufe, self.lineEditBereichsstufengroesse]
+            for le in lineEdits:
+                try:
+                    aktWert = float(le.text().replace(",", "."))
+                    neuWert = "{:.1f}".format(aktWert * umrechenfaktor)
+                    le.setText(str(neuWert).replace(".", ","))
+                except:
+                    pass
+    
+    def mitVorherigemPlanAusfuellen(self):
+        pfad = self.dokuVerzeichnis + os.sep+ self.patId
+        if os.path.exists(self.dokuVerzeichnis):
+            if os.path.exists(pfad) and len(os.listdir(pfad)) > 0:
+                dokus = [d for d in os.listdir(pfad) if os.path.isfile(pfad + os.sep + d)]
+                dokus.sort()
+                # Ältere Dokus löschen
+                if len(dokus) > 3:
+                    for i in range(0, len(dokus) - 3):
+                        try:
+                            os.unlink(os.path.join(pfad, dokus[i]))
+                            logger.logger.info("Dokufile " + os.path.join(pfad, dokus[i]) + " gelöscht")
+                        except Exception as e:
+                            logger.logger.warning("Fehler beim Löschen von Dokufile " + os.path.join(pfad, dokus[i]) + ": " + str(e))
+                try:
+                    self.setPreFormularXml(os.path.join(self.vorlagenverzeichnis, pfad, dokus[len(dokus) - 1]), True)
+                    return dokus[len(dokus) - 1][:8]
+                except Exception as e:
+                    mb = QMessageBox(QMessageBox.Icon.Warning, "Hinweis von InsuGDT", "Fehler beim Lesen der vorherigen Dokumentation.\nSoll InsuGDT neu gestartet werden?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                    mb.setDefaultButton(QMessageBox.StandardButton.Yes)
+                    mb.button(QMessageBox.StandardButton.Yes).setText("Ja")
+                    mb.button(QMessageBox.StandardButton.No).setText("Nein")
+                    if mb.exec() == QMessageBox.StandardButton.Yes:
+                        os.execl(sys.executable, __file__, *sys.argv)
+        else:
+            mb = QMessageBox(QMessageBox.Icon.Warning, "Hinweis von InsuGDT", "Das Archivierungsverzeichnis " + self.dokuVerzeichnis + "  ist nicht erreichbar. Vorherige Insulinspritzpläne können daher nicht geladen werden.\nFalls es sich um eine Netzwerkfreigabe handeln sollte, stellen Sie die entsprechende Verbindung sicher und starten InsuGDT neu.\nSoll InsuGDT neu gestartet werden?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            mb.setDefaultButton(QMessageBox.StandardButton.Yes)
+            mb.button(QMessageBox.StandardButton.Yes).setText("Ja")
+            mb.button(QMessageBox.StandardButton.No).setText("Nein")
+            if mb.exec() == QMessageBox.StandardButton.Yes:
+                os.execl(sys.executable, __file__, *sys.argv)  
 
     def setStatusMessage(self, message = ""):
         self.statusleiste.clearMessage()
@@ -667,7 +787,7 @@ class MainWindow(QMainWindow):
         Return:
             fehler: list
         """
-        kommazahlPattern = r"^\d+([,.]\d)?$"
+        kommazahlPattern = r"^\d+([,.]\d+)?$"
         befaktorPattern = r"^\d([,.]\d)?$"
         zahlPattern = r"^\d+$"
         fehler = []
@@ -698,56 +818,7 @@ class MainWindow(QMainWindow):
         filter = ";;".join(FILTER)
         dateiname, filter = QFileDialog.getSaveFileName(self, "Vorlage speichern", self.vorlagenverzeichnis, filter, FILTER[0])
         if dateiname:
-            # XML-Datei erzeugen
-            insulinplanElement = ElementTree.Element("insulinplan")
-            berechnungsparameterElement = ElementTree.Element("berechnungsparameter")
-            blutzuckerzielElement = ElementTree.Element("blutzuckerziel")
-            blutzuckerzielElement.text = self.lineEditBlutzuckerziel.text()
-            korrekturElement = ElementTree.Element("korrektur")
-            korrekturElement.text = self.lineEditKorrektur.text()
-            einheitElement = ElementTree.Element("einheit")
-            einheitElement.text = self.blutzuckereinheit.value
-            befaktorenElement = ElementTree.Element("befaktoren")
-            morgensElement = ElementTree.Element("morgens")
-            morgensElement.text = self.lineEditBeFaktoren[0].text().replace(",", ".")
-            mittagsElement = ElementTree.Element("mittags")
-            mittagsElement.text = self.lineEditBeFaktoren[1].text().replace(",", ".")
-            abendsElement = ElementTree.Element("abends")
-            abendsElement.text = self.lineEditBeFaktoren[2].text().replace(",", ".")
-            anzahlblutzuckerbereichsstufenElement = ElementTree.Element("anzahlblutzuckerbereichsstufen")
-            anzahlblutzuckerbereichsstufenElement.text = self.lineEditAnzahlBlutzuckerbereichsstufen.text()
-            untersteblutzuckerstufeElement = ElementTree.Element("untersteblutzuckerstufe")
-            untersteblutzuckerstufeElement.text = self.lineEditUntersteBereichsstufe.text()
-            befaktorenElement.append(morgensElement)
-            befaktorenElement.append(mittagsElement)
-            befaktorenElement.append(abendsElement)
-            berechnungsparameterElement.append(blutzuckerzielElement)
-            berechnungsparameterElement.append(korrekturElement)
-            berechnungsparameterElement.append(einheitElement)
-            berechnungsparameterElement.append(befaktorenElement)
-            berechnungsparameterElement.append(anzahlblutzuckerbereichsstufenElement)
-            berechnungsparameterElement.append(untersteblutzuckerstufeElement)
-            mahlzeiteninsulinElement = ElementTree.Element("mahlzeiteninsulin")
-            nameMElement = ElementTree.Element("name")
-            nameMElement.text = self.lineEditMiName.text()
-            basalinsulinElement = ElementTree.Element("basalinsulin")
-            nameBElement = ElementTree.Element("name")
-            nameBElement.text = self.lineEditBiName.text()
-            dosisElement = ElementTree.Element("dosis")
-            dosisElement.text = self.lineEditBiDosis.text()
-            verabreichungsintervallElement = ElementTree.Element("verabreichungintervall")
-            if self.radioButtonTaeglich.isChecked():
-                verabreichungsintervallElement.text = "täglich"
-            else:
-                verabreichungsintervallElement.text = "wöchentlich"
-            mahlzeiteninsulinElement.append(nameMElement)
-            basalinsulinElement.append(nameBElement)
-            basalinsulinElement.append(dosisElement)
-            basalinsulinElement.append(verabreichungsintervallElement)
-            insulinplanElement.append(berechnungsparameterElement)
-            insulinplanElement.append(mahlzeiteninsulinElement)
-            insulinplanElement.append(basalinsulinElement)
-
+            insulinplanElement = self.getInsulinplanXml()
             et = ElementTree.ElementTree(insulinplanElement)
             ElementTree.indent(et)
             try:
@@ -761,6 +832,60 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 self.setStatusMessage("Fehler beim Speichern der Vorlage: " + e.args[1])
                 logger.logger.error("Fehler beim Speichern der Vorlage " + dateiname) 
+    
+    def getInsulinplanXml(self):
+        insulinplanElement = ElementTree.Element("insulinplan")
+        berechnungsparameterElement = ElementTree.Element("berechnungsparameter")
+        blutzuckerzielElement = ElementTree.Element("blutzuckerziel")
+        blutzuckerzielElement.text = self.lineEditBlutzuckerziel.text()
+        korrekturElement = ElementTree.Element("korrektur")
+        korrekturElement.text = self.lineEditKorrektur.text()
+        einheitElement = ElementTree.Element("einheit")
+        einheitElement.text = self.blutzuckereinheit.value
+        befaktorenElement = ElementTree.Element("befaktoren")
+        morgensElement = ElementTree.Element("morgens")
+        morgensElement.text = self.lineEditBeFaktoren[0].text().replace(",", ".")
+        mittagsElement = ElementTree.Element("mittags")
+        mittagsElement.text = self.lineEditBeFaktoren[1].text().replace(",", ".")
+        abendsElement = ElementTree.Element("abends")
+        abendsElement.text = self.lineEditBeFaktoren[2].text().replace(",", ".")
+        anzahlblutzuckerbereichsstufenElement = ElementTree.Element("anzahlblutzuckerbereichsstufen")
+        anzahlblutzuckerbereichsstufenElement.text = self.lineEditAnzahlBlutzuckerbereichsstufen.text()
+        untersteblutzuckerstufeElement = ElementTree.Element("untersteblutzuckerstufe")
+        untersteblutzuckerstufeElement.text = self.lineEditUntersteBereichsstufe.text()
+        bereichsstufengroesseElement = ElementTree.Element("bereichsstuferngroesse")
+        bereichsstufengroesseElement.text = self.lineEditBereichsstufengroesse.text()
+        befaktorenElement.append(morgensElement)
+        befaktorenElement.append(mittagsElement)
+        befaktorenElement.append(abendsElement)
+        berechnungsparameterElement.append(blutzuckerzielElement)
+        berechnungsparameterElement.append(korrekturElement)
+        berechnungsparameterElement.append(einheitElement)
+        berechnungsparameterElement.append(befaktorenElement)
+        berechnungsparameterElement.append(anzahlblutzuckerbereichsstufenElement)
+        berechnungsparameterElement.append(untersteblutzuckerstufeElement)
+        berechnungsparameterElement.append(bereichsstufengroesseElement)
+        mahlzeiteninsulinElement = ElementTree.Element("mahlzeiteninsulin")
+        nameMElement = ElementTree.Element("name")
+        nameMElement.text = self.lineEditMiName.text()
+        basalinsulinElement = ElementTree.Element("basalinsulin")
+        nameBElement = ElementTree.Element("name")
+        nameBElement.text = self.lineEditBiName.text()
+        dosisElement = ElementTree.Element("dosis")
+        dosisElement.text = self.lineEditBiDosis.text()
+        verabreichungsintervallElement = ElementTree.Element("verabreichungsintervall")
+        if self.radioButtonTaeglich.isChecked():
+            verabreichungsintervallElement.text = "täglich"
+        else:
+            verabreichungsintervallElement.text = "wöchentlich"
+        mahlzeiteninsulinElement.append(nameMElement)
+        basalinsulinElement.append(nameBElement)
+        basalinsulinElement.append(dosisElement)
+        basalinsulinElement.append(verabreichungsintervallElement)
+        insulinplanElement.append(berechnungsparameterElement)
+        insulinplanElement.append(mahlzeiteninsulinElement)
+        insulinplanElement.append(basalinsulinElement)
+        return insulinplanElement
 
     def getInsulinplan(self):
         blutzuckerziel = float(self.lineEditBlutzuckerziel.text().replace(",", "."))
@@ -798,13 +923,11 @@ class MainWindow(QMainWindow):
             insulinplan = self.getInsulinplan()
             if len(insulinplan.getZeilen()) > 0:
                 text = "<style>table.insulinplan { margin-top:6px;border-collapse:collapse } table.insulinplan td { padding:2px;border:1px solid rgb(0,0,0);font-weight:normal; } table.insulinplan td table {border-collapse:collapse;padding:0px } table.insulinplan td table td {border:none;padding:0px 2px 0px 2px; } </style>"
-                text += "<div style='font-weight:bold'>Insulinspritzplan:</div>"
+                text += "<div style='font-weight:bold;text-align:center'>Insulinspritzplan:</div>"
+                text += "<div style='text-align:left;margin-top:20px'><b>Basalinsulin:</b><br />" + self.lineEditBiName.text() + ": " + self.lineEditBiDosis.text() + " IE einmal " + insulinplan.getBiVerabreichungsintervall().value + "</div>"
+                text += "<div style='text-align:left;margin-top:20px'><b>Mahlzeiteninsulin:</b><br />" + self.lineEditMiName.text() + " (siehe Tabelle):</div>"
                 text += "<table class='insulinplan'>"
-                text += "<tr><td colspan='5' style='text-align:center'><b>Basalinsulin</b></td></tr>"
-                text += "<tr><td colspan='5'>" + self.lineEditBiName.text() + ": " + self.lineEditBiDosis.text() + " IE einmal " + insulinplan.getBiVerabreichungsintervall().value + "</td></tr>"
-                text += "<tr><td colspan='5' style='text-align:center'></td></tr>"
-                text += "<tr><td colspan='5' style='text-align:center'><b>Mahlzeiteninsulin</b></td></tr>"
-                text += "<tr><td>Blutzucker-<br />Messwert</td><td>" + self.lineEditMiName.text() + "<br />morgens [IE]</td><td>" + self.lineEditMiName.text() + "<br />mittags [IE]</td><td>" + self.lineEditMiName.text() + "<br />abends [IE]</td><td><i>" + self.lineEditMiName.text() + "<br />Summe [IE]<sup>*</sup></i></td></tr>"
+                text += "<tr><td><b>Blutzucker</b></td><td><b>Morgens [IE]</b></td><td><b>Mittags [IE]</b></td><td><b>Abends [IE]</b></td><td><b style='font-style:italic'>Summe [IE]<sup>*</sup></i></td></tr>"
                 for zeile in insulinplan.getZeilen():
                     text += "<tr><td>" + zeile[0] + "</td><td>" + str(zeile[1][0]).replace(".", ",") + "</td><td>" + str(zeile[1][1]).replace(".", ",") + "</td><td>" + str(zeile[1][2]).replace(".", ",") + "</td><td><i>" + str(zeile[2]) + "</i></td></tr>"
                 text += "</table>"
@@ -835,20 +958,22 @@ class MainWindow(QMainWindow):
             pdf.set_font("Helvetica", "", 14)
             pdf.cell(0, 10, "", new_x="LMARGIN", new_y="NEXT")
             pdf.set_font("Helvetica", "B", 12)
-            pdf.cell(0, 0, "Basalinsulin:", new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(0, 0, "Basalinsulin", new_x="LMARGIN", new_y="NEXT")
             pdf.set_font("Helvetica", "", 12)
-            pdf.cell(0, 10, insulinplan.getBiName() + " " + str(insulinplan.getBiDosis()) + " IE einmal " + insulinplan.getBiVerabreichungsintervall().value)
-            pdf.set_font("Helvetica", "", 14)
-            pdf.cell(0, 10, "", new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(0, 10, insulinplan.getBiName() + ": " + str(insulinplan.getBiDosis()) + " IE einmal " + insulinplan.getBiVerabreichungsintervall().value)
+            pdf.cell(0, 14, "", new_x="LMARGIN", new_y="NEXT")
             pdf.set_font("Helvetica", "B", 12)
-            pdf.cell(0, 10, "Mahlzeiteninsulin:", new_x="LMARGIN", new_y="NEXT")
-            titelzeile = ["Blutzucker-\nMesswert [" + self.blutzuckereinheit.value + "]", insulinplan.getMiName() + "\nmorgens [IE]", insulinplan.getMiName() + "\nmittags [IE]", insulinplan.getMiName() + "\nabends [IE]"]
+            pdf.cell(0, 10, "Mahlzeiteninsulin", new_x="LMARGIN", new_y="NEXT")
+            pdf.set_font("Helvetica", "", 12)
+            pdf.cell(0, 0, insulinplan.getMiName() + " (siehe Tabelle):", new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(0, 6, "", new_x="LMARGIN", new_y="NEXT")
+            titelzeile = ["Blutzucker [" + self.blutzuckereinheit.value + "]", "Morgens [IE]", "Mittags [IE]", "Abends [IE]"]
             colWidths = (25,25,25,25)
-            with pdf.table(v_align=enums.VAlign.T, line_height=1.5 * pdf.font_size, cell_fill_color=(230,230,230), cell_fill_mode="ROWS", col_widths=colWidths) as table: # type: ignore
+            with pdf.table(v_align=enums.VAlign.T, line_height=2 * pdf.font_size, cell_fill_color=(230,230,230), cell_fill_mode="ROWS", col_widths=colWidths) as table: # type: ignore
                 pdf.set_font("Helvetica", "", 12)
                 row = table.row()
                 for titel in titelzeile:
-                    row.cell(text=titel)
+                    row.cell(text=titel, align="C")
                 for zeile in insulinplan.getZeilen():
                     row = table.row()
                     row.cell(text=zeile[0])
@@ -860,8 +985,8 @@ class MainWindow(QMainWindow):
             logger.logger.info("PDF-Seite aufgebaut")
             if self.configIni["Allgemein"]["pdferstellen"] == "1":
                 try:
-                    pdf.output(os.path.join(basedir, "pdf/insulinplan_temp.pdf"))
-                    logger.logger.info("PDF-Output nach " + os.path.join(basedir, "pdf/insulinplan_temp.pdf") + " erfolgreich")
+                    pdf.output(os.path.join(basedir, "pdf/insulinspritzplan_temp.pdf"))
+                    logger.logger.info("PDF-Output nach " + os.path.join(basedir, "pdf/insulinspritzplan_temp.pdf") + " erfolgreich")
                     self.setStatusMessage("PDF-Datei erstellt")
                 except Exception as e:
                     self.setStatusMessage("Fehler bei PDF-Datei-Erstellung: " + e.args[1])
@@ -883,6 +1008,15 @@ class MainWindow(QMainWindow):
                 gd.addZeile("6304", self.configIni["Allgemein"]["pdfbezeichnung"])
                 gd.addZeile("6305", os.path.join(basedir, "pdf/insulinspritzplan_temp.pdf"))
             gd.addZeile("6220", "Insulinspritzplan")
+            gd.addZeile("6228", "Basalinsulin: " + insulinplan.getBiName() + ": " + str(insulinplan.getBiDosis()) + " IE einmal " + insulinplan.getBiVerabreichungsintervall().value)
+            gd.addZeile("6228", "Mahlzeiteninsulin: " + insulinplan.getMiName() + " (siehe Tabelle):")
+            space = "          "
+            gd.addZeile("6228", "Blutzucker [" + self.blutzuckereinheit.value + "]" + space + "Morgens [IE]" + space + "Mittags [IE]" + space + "Abends [IE]")
+            for zeile in insulinplan.getZeilen():
+                befundzeile = zeile[0]
+                for i in range(3):
+                    befundzeile += space + str(zeile[1][i])
+                gd.addZeile("6228", befundzeile)
             # GDT-Datei exportieren
             if not gd.speichern(self.gdtExportVerzeichnis + "/" + self.kuerzelpraxisedv + self.kuerzelinsugdt + ".gdt", self.zeichensatz):
                 logger.logger.error("Fehler bei GDT-Dateiexport nach " + self.gdtExportVerzeichnis + "/" + self.kuerzelpraxisedv + self.kuerzelinsugdt + ".gdt")
@@ -892,6 +1026,30 @@ class MainWindow(QMainWindow):
             else:    
                 self.setStatusMessage("GDT-Export erfolgreich")
                 logger.logger.info("GDT-Datei " + self.gdtExportVerzeichnis + "/" + self.kuerzelpraxisedv + self.kuerzelinsugdt + ".gdt gespeichert")
+                if self.dokuVerzeichnis != "":
+                    if os.path.exists(self.dokuVerzeichnis):
+                        speicherdatum = untdatDatetime.strftime("%Y%m%d")
+                        if not os.path.exists(self.dokuVerzeichnis + os.sep + self.patId):
+                            os.mkdir(self.dokuVerzeichnis + os.sep + self.patId, 0o777)
+                            logger.logger.info("Dokuverzeichnis für PatId " + self.patId + " erstellt")
+                        insulinplanElement = self.getInsulinplanXml()
+                        et = ElementTree.ElementTree(insulinplanElement)
+                        ElementTree.indent(et)
+                        try:
+                            dateiname = self.dokuVerzeichnis + os.sep + self.patId + os.sep + speicherdatum + "_" + self.patId + ".igv"
+                            et.write(dateiname, "utf-8", True)
+                            logger.logger.info("Insulinplan für PatId " + self.patId + " archiviert")
+                        except IOError as e:
+                            logger.logger.error("IO-Fehler beim Archivieren des Insulinplans von PatId " + self.patId)
+                            mb = QMessageBox(QMessageBox.Icon.Warning, "Hinweis von InsuGDT", "Fehler beim Archivieren des Insulinplans\n" + str(e), QMessageBox.StandardButton.Ok)
+                            mb.exec()
+                        except:
+                            logger.logger.error("Nicht-IO-Fehler beim Archivieren des Insulinplans von PatId " + self.patId)
+                            raise
+                    else:
+                        logger.logger.warning("Dokuverzeichnis existiert nicht")
+                        mb = QMessageBox(QMessageBox.Icon.Warning, "Hinweis von InsuGDT", "Archivieren der Insulinplans nicht möglich\nBitte überprüfen Sie die Angabe des Dokumentations-Speicherverzeichnisses.", QMessageBox.StandardButton.Ok)
+                        mb.exec()
             sys.exit()
 
         else:
@@ -942,6 +1100,14 @@ class MainWindow(QMainWindow):
         de = dialogEinstellungenAllgemein.EinstellungenAllgemein(self.configPath)
         if de.exec() == 1:
             self.configIni["Allgemein"]["einrichtungsname"] = de.lineEditEinrichtungsname.text()
+            if de.radioButtonBlutzuckereinheitMg.isChecked():
+                self.configIni["Allgemein"]["blutzuckereinheit"] = class_enums.Blutzuckereinheit.MG_DL.value
+            else: 
+                self.configIni["Allgemein"]["blutzuckereinheit"] = class_enums.Blutzuckereinheit.MMOL_L.value
+            self.configIni["Allgemein"]["dokuverzeichnis"] = de.lineEditArchivierungsverzeichnis.text()
+            self.configIni["Allgemein"]["vorherigedokuladen"] = "0"
+            if de.checkboxVorherigeDokuLaden.isChecked():
+                self.configIni["Allgemein"]["vorherigedokuladen"] = "1"
             self.configIni["Allgemein"]["pdferstellen"] = "0"
             if de.checkboxPdfErstellen.isChecked():
                 self.configIni["Allgemein"]["pdferstellen"] = "1"  

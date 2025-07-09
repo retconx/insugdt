@@ -7,6 +7,3 @@ class Verabreichungsintervall(Enum):
 class Blutzuckereinheit(Enum):
     MG_DL = "mg/dl"
     MMOL_L = "mmol/l"
-
-a = Blutzuckereinheit("mg/dl")
-print(a)
