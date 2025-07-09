@@ -82,9 +82,9 @@ class Insulinplan:
                 else:
                     insulinmengen.append(0)
             if stufe == 0:
-                blutzuckerbereich = "Bis " + "{:.1f}".format(self.untersteStufe).replace(".", ",")
+                blutzuckerbereich = "Unter " + "{:.1f}".format(self.untersteStufe).replace(".", ",")
                 if self.blutzuckereinheit == class_enums.Blutzuckereinheit.MG_DL:
-                     blutzuckerbereich = "Bis " + "{:.0f}".format(self.untersteStufe)
+                     blutzuckerbereich = "Unter " + "{:.0f}".format(self.untersteStufe)
             elif stufe == self.anzahlStufen - 1:
                 blutzuckerbereich = "Ab " + "{:.1f}".format(self.untersteStufe + (stufe -1) * self.stufengroesse).replace(".", ",")
                 if self.blutzuckereinheit == class_enums.Blutzuckereinheit.MG_DL:

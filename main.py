@@ -129,7 +129,10 @@ class MainWindow(QMainWindow):
             self.lineEditMiName.setText(str(miName))
             self.lineEditBiName.setText(str(biName))
             self.lineEditBiDosis.setText(str(biDosis))
-            self.radioButtonTaeglich.setChecked(biVerabreichung == class_enums.Verabreichungsintervall.TÄGLICH.value[:7])
+            if biVerabreichung == class_enums.Verabreichungsintervall.WOECHENTLICH.value:
+                self.radioButtonWoechentlich.setChecked(True)
+            else:
+                self.radioButtonTaeglich.setChecked(True)
             logger.logger.info("Eingabeformular vor-ausgefüllt")
             self.setCursor(Qt.CursorShape.ArrowCursor)
         except Exception as e:
@@ -367,18 +370,28 @@ class MainWindow(QMainWindow):
             self.pushButtonVorausgefuellt.setStyleSheet("color:rgb(0,0,200)")
             
             # Groupbox Berechnungsparameter
+            defaultBlutzuckerziel = "110"
+            defaultKorrektur = "30"
+            defautlUntersteBereichsstufe = "90"
+            defaultBereichsstufengröße = "30"
+            if self.blutzuckereinheit == class_enums.Blutzuckereinheit.MMOL_L:
+                print("dsf")
+                defaultBlutzuckerziel = "{:.1f}".format(110 * 0.0555)
+                defaultKorrektur = "{:.1f}".format(30 * 0.0555)
+                defautlUntersteBereichsstufe = "{:.1f}".format(110 * 0.0555)
+                defaultBereichsstufengröße = "{:.1f}".format(30 * 0.0555)
             berechnungsparameterLayout = QGridLayout()
             groupBoxBerechnungsparameter = QGroupBox("Berechnungsparameter")
             groupBoxBerechnungsparameter.setFont(self.fontBold)
             labelBlutzuckerziel= QLabel("Blutzuckerziel")
             labelBlutzuckerziel.setFont(self.fontNormal)
-            self.lineEditBlutzuckerziel = QLineEdit("110")
+            self.lineEditBlutzuckerziel = QLineEdit(defaultBlutzuckerziel)
             self.lineEditBlutzuckerziel.setFont(self.fontNormal)
             self.labelEinheitBlutuckerziel = QLabel(self.blutzuckereinheit.value)
             self.labelEinheitBlutuckerziel.setFont(self.fontNormal)
             labelKorrektur = QLabel("Blutzuckersenkung/Insulineinheit (Korrektur)")
             labelKorrektur.setFont(self.fontNormal)
-            self.lineEditKorrektur = QLineEdit("30")
+            self.lineEditKorrektur = QLineEdit(defaultKorrektur)
             self.lineEditKorrektur.setFont(self.fontNormal) 
             self.labelEinheitKorrektur = QLabel(self.blutzuckereinheit.value)
             self.labelEinheitKorrektur.setFont(self.fontNormal)
@@ -402,13 +415,13 @@ class MainWindow(QMainWindow):
             self.lineEditAnzahlBlutzuckerbereichsstufen.setFont(self.fontNormal)
             labelUntersteBereichsstufe = QLabel("Unterste Bereichsstufe")
             labelUntersteBereichsstufe.setFont(self.fontNormal)
-            self.lineEditUntersteBereichsstufe = QLineEdit("90")
+            self.lineEditUntersteBereichsstufe = QLineEdit(defautlUntersteBereichsstufe)
             self.lineEditUntersteBereichsstufe.setFont(self.fontNormal)
             self.labelEinheitUntersteBereichsstufe = QLabel(self.blutzuckereinheit.value)
             self.labelEinheitUntersteBereichsstufe.setFont(self.fontNormal)
             labelBereichsstufengroesse = QLabel("Bereichsstufengröße")
             labelBereichsstufengroesse.setFont(self.fontNormal)
-            self.lineEditBereichsstufengroesse = QLineEdit("30")
+            self.lineEditBereichsstufengroesse = QLineEdit(defaultBereichsstufengröße)
             self.lineEditBereichsstufengroesse.setFont(self.fontNormal)
             self.labelEinheitBereichsstufengroesse = QLabel(self.blutzuckereinheit.value)
             self.labelEinheitBereichsstufengroesse.setFont(self.fontNormal)
@@ -487,10 +500,13 @@ class MainWindow(QMainWindow):
             self.radioButtonEinheitMg = QRadioButton(class_enums.Blutzuckereinheit.MG_DL.value)
             self.radioButtonEinheitMg.setFont(self.fontNormal)
             self.radioButtonEinheitMg.clicked.connect(self.radioButtonEinheitClicked)
-            self.radioButtonEinheitMg.setChecked(True)
             self.radioButtonEinheitMmol = QRadioButton(class_enums.Blutzuckereinheit.MMOL_L.value)
             self.radioButtonEinheitMmol.setFont(self.fontNormal)
             self.radioButtonEinheitMmol.clicked.connect(self.radioButtonEinheitClicked)
+            if self.blutzuckereinheit == class_enums.Blutzuckereinheit.MG_DL:
+                self.radioButtonEinheitMg.setChecked(True)
+            else:
+                self.radioButtonEinheitMmol.setChecked(True)
             self.checkBoxUmrechnen = QCheckBox("Textfeldinhalte umrechnen")
             self.checkBoxUmrechnen.setFont(self.fontNormal)
             groupBoxBlutzuckereinheit.setLayout(blutzuckereinheitLayout)
@@ -735,8 +751,12 @@ class MainWindow(QMainWindow):
             for le in lineEdits:
                 try:
                     aktWert = float(le.text().replace(",", "."))
-                    neuWert = "{:.1f}".format(aktWert * umrechenfaktor)
-                    le.setText(str(neuWert).replace(".", ","))
+                    if self.radioButtonEinheitMg.isChecked():
+                        neuWert = "{:.0f}".format(aktWert * umrechenfaktor)
+                        le.setText(str(neuWert))
+                    else:
+                        neuWert = "{:.2f}".format(aktWert * umrechenfaktor)
+                        le.setText(str(neuWert).replace(".", ","))
                 except:
                     pass
     
@@ -922,14 +942,14 @@ class MainWindow(QMainWindow):
         else:
             insulinplan = self.getInsulinplan()
             if len(insulinplan.getZeilen()) > 0:
-                text = "<style>table.insulinplan { margin-top:6px;border-collapse:collapse } table.insulinplan td { padding:2px;border:1px solid rgb(0,0,0);font-weight:normal; } table.insulinplan td table {border-collapse:collapse;padding:0px } table.insulinplan td table td {border:none;padding:0px 2px 0px 2px; } </style>"
+                text = "<style>table.insulinplan { margin-top:6px;border-collapse:collapse } table.insulinplan td { padding:2px;border:1px solid rgb(0,0,0);font-weight:normal; } table.insulinplan td.zentriert { padding:2px;border:1px solid rgb(0,0,0);font-weight:normal;text-align:center }</style>"
                 text += "<div style='font-weight:bold;text-align:center'>Insulinspritzplan:</div>"
                 text += "<div style='text-align:left;margin-top:20px'><b>Basalinsulin:</b><br />" + self.lineEditBiName.text() + ": " + self.lineEditBiDosis.text() + " IE einmal " + insulinplan.getBiVerabreichungsintervall().value + "</div>"
                 text += "<div style='text-align:left;margin-top:20px'><b>Mahlzeiteninsulin:</b><br />" + self.lineEditMiName.text() + " (siehe Tabelle):</div>"
                 text += "<table class='insulinplan'>"
-                text += "<tr><td><b>Blutzucker</b></td><td><b>Morgens [IE]</b></td><td><b>Mittags [IE]</b></td><td><b>Abends [IE]</b></td><td><b style='font-style:italic'>Summe [IE]<sup>*</sup></i></td></tr>"
+                text += "<tr><td><b>Blutzucker</b></td><td class='zentriert'><b>Morgens [IE]</b></td><td class='zentriert'><b>Mittags [IE]</b></td><td class='zentriert'><b>Abends [IE]</b></td><td><b style='font-style:italic'>Summe [IE]<sup>*</sup></i></td></tr>"
                 for zeile in insulinplan.getZeilen():
-                    text += "<tr><td>" + zeile[0] + "</td><td>" + str(zeile[1][0]).replace(".", ",") + "</td><td>" + str(zeile[1][1]).replace(".", ",") + "</td><td>" + str(zeile[1][2]).replace(".", ",") + "</td><td><i>" + str(zeile[2]) + "</i></td></tr>"
+                    text += "<tr><td>" + zeile[0] + "</td><td class='zentriert'>" + str(zeile[1][0]).replace(".", ",") + "</td><td class='zentriert'>" + str(zeile[1][1]).replace(".", ",") + "</td><td class='zentriert'>" + str(zeile[1][2]).replace(".", ",") + "</td><td class='zentriert'><i>" + str(zeile[2]) + "</i></td></tr>"
                 text += "</table>"
                 text += "<br /><sup>*</sup> Erscheint nicht auf dem Ausdruck"
                 
@@ -972,8 +992,13 @@ class MainWindow(QMainWindow):
             with pdf.table(v_align=enums.VAlign.T, line_height=2 * pdf.font_size, cell_fill_color=(230,230,230), cell_fill_mode="ROWS", col_widths=colWidths) as table: # type: ignore
                 pdf.set_font("Helvetica", "", 12)
                 row = table.row()
+                i = 0
                 for titel in titelzeile:
-                    row.cell(text=titel, align="C")
+                    if i == 0:
+                        row.cell(text=titel)
+                    else:
+                        row.cell(text=titel, align="C")
+                    i += 1
                 for zeile in insulinplan.getZeilen():
                     row = table.row()
                     row.cell(text=zeile[0])
