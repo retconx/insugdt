@@ -375,7 +375,6 @@ class MainWindow(QMainWindow):
             defautlUntersteBereichsstufe = "90"
             defaultBereichsstufengröße = "30"
             if self.blutzuckereinheit == class_enums.Blutzuckereinheit.MMOL_L:
-                print("dsf")
                 defaultBlutzuckerziel = "{:.1f}".format(110 * 0.0555)
                 defaultKorrektur = "{:.1f}".format(30 * 0.0555)
                 defautlUntersteBereichsstufe = "{:.1f}".format(110 * 0.0555)

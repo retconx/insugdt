@@ -26,7 +26,6 @@ class Eula(QDialog):
         body = response.json()["body"]
         aenderungen = str.split(body, "###")[1]
         aenderungenListe = str.split(aenderungen, "\r\n- ")
-        print(aenderungenListe)
         datum = aenderungenListe[0].strip()
         aenderungenText = ""
         for i in range(len(aenderungenListe)):
