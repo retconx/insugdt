@@ -102,6 +102,8 @@ class MainWindow(QMainWindow):
             self.blutzuckereinheit = class_enums.Blutzuckereinheit(einheit)
             beFaktorenElement = berechnungsparameterElement.find("befaktoren") # type: ignore
             beFaktorenListe = [beFaktorenElement.findtext("morgens"), beFaktorenElement.findtext("mittags"), beFaktorenElement.findtext("abends")] # type: ignore
+            defaultInsulinElement = berechnungsparameterElement.find("defaultinsulin") # type: ignore
+            defaultInsulinListe = [defaultInsulinElement.findtext("morgens"), defaultInsulinElement.findtext("mittags"), defaultInsulinElement.findtext("abends")] # type: ignore
             anzahlblutzuckerbereichsstufen = berechnungsparameterElement.findtext("anzahlblutzuckerbereichsstufen") # type: ignore
             untersteblutzuckerstufe = berechnungsparameterElement.findtext("untersteblutzuckerstufe") # type: ignore
             bereichsstuferngroesse = berechnungsparameterElement.findtext("bereichsstuferngroesse") # type: ignore
@@ -117,6 +119,8 @@ class MainWindow(QMainWindow):
             self.labelEinheitKorrektur.setText(str(einheit))
             for i in range(3):
                 self.lineEditBeFaktoren[i].setText(str(beFaktorenListe[i]).replace(".", ","))
+            for i in range(3):
+                self.lineEditDefaultInsulin[i].setText(str(defaultInsulinListe[i]))
             self.lineEditAnzahlBlutzuckerbereichsstufen.setText(str(anzahlblutzuckerbereichsstufen))
             self.lineEditUntersteBereichsstufe.setText(str(untersteblutzuckerstufe))
             self.labelEinheitUntersteBereichsstufe.setText(str(einheit))
@@ -394,7 +398,7 @@ class MainWindow(QMainWindow):
             self.lineEditKorrektur.setFont(self.fontNormal) 
             self.labelEinheitKorrektur = QLabel(self.blutzuckereinheit.value)
             self.labelEinheitKorrektur.setFont(self.fontNormal)
-            beFaktorenLayout = QGridLayout()
+            tageszeitenLayout = QGridLayout()
             labelBeFaktoren = QLabel("BE-Faktoren")
             labelBeFaktoren.setFont(self.fontNormal)
             labelMorgens = QLabel("morgens")
@@ -408,6 +412,16 @@ class MainWindow(QMainWindow):
             for i in range(3):
                 self.lineEditBeFaktoren.append(QLineEdit(defaultBeFaktoren[i]))
                 self.lineEditBeFaktoren[i].setFont(self.fontNormal)
+            labelDefaultInsulin = QLabel("Insulindosis bei normalem Blutzucker")
+            labelDefaultInsulin.setFont(self.fontNormal)
+            self.lineEditDefaultInsulin = []
+            labelIe = []
+            defaultInsulin = ["6", "4", "5"]
+            for i in range(3):
+                self.lineEditDefaultInsulin.append(QLineEdit(defaultInsulin[i]))
+                self.lineEditDefaultInsulin[i].setFont(self.fontNormal)
+                labelIe.append(QLabel("IE"))
+                labelIe[i].setFont(self.fontNormal)
             labelAnzahlBlutzuckerereichsstufen = QLabel("Anzahl Blutzuckerbereichsstufen")
             labelAnzahlBlutzuckerereichsstufen.setFont(self.fontNormal)
             self.lineEditAnzahlBlutzuckerbereichsstufen = QLineEdit("8")
@@ -431,21 +445,26 @@ class MainWindow(QMainWindow):
             berechnungsparameterLayout.addWidget(labelKorrektur, 1, 0, 1, 1)
             berechnungsparameterLayout.addWidget(self.lineEditKorrektur, 1, 1, 1, 1)
             berechnungsparameterLayout.addWidget(self.labelEinheitKorrektur, 1, 2, 1, 1)
-            berechnungsparameterLayout.addWidget(labelBeFaktoren, 2, 0, 1, 1)
-            beFaktorenLayout.addWidget(labelMorgens, 0, 0)
-            beFaktorenLayout.addWidget(labelMittags, 0, 1)
-            beFaktorenLayout.addWidget(labelAbends, 0, 2)
+            berechnungsparameterLayout.addWidget(QLabel(" "), 2, 0, 1, 1)
+            berechnungsparameterLayout.addWidget(labelBeFaktoren, 3, 0, 1, 1)
+            berechnungsparameterLayout.addWidget(labelDefaultInsulin, 4, 0, 1, 1)
+            tageszeitenLayout.addWidget(labelMorgens, 0, 0, 1, 2)
+            tageszeitenLayout.addWidget(labelMittags, 0, 2, 1, 2)
+            tageszeitenLayout.addWidget(labelAbends, 0, 4, 1, 2)
             for i in range(3):
-                beFaktorenLayout.addWidget(self.lineEditBeFaktoren[i], 1, i)
-            berechnungsparameterLayout.addLayout(beFaktorenLayout, 2, 1, 1, 2)
-            berechnungsparameterLayout.addWidget(labelAnzahlBlutzuckerereichsstufen, 3, 0, 1, 1)
-            berechnungsparameterLayout.addWidget(self.lineEditAnzahlBlutzuckerbereichsstufen, 3, 1, 1, 2)
-            berechnungsparameterLayout.addWidget(labelUntersteBereichsstufe, 4, 0, 1, 1)
-            berechnungsparameterLayout.addWidget(self.lineEditUntersteBereichsstufe, 4, 1, 1, 1)
-            berechnungsparameterLayout.addWidget(self.labelEinheitUntersteBereichsstufe, 4, 2, 1, 1)
-            berechnungsparameterLayout.addWidget(labelBereichsstufengroesse, 5, 0, 1, 1)
-            berechnungsparameterLayout.addWidget(self.lineEditBereichsstufengroesse, 5, 1, 1, 1)
-            berechnungsparameterLayout.addWidget(self.labelEinheitBereichsstufengroesse, 5, 2, 1, 1)
+                tageszeitenLayout.addWidget(self.lineEditBeFaktoren[i], 1, i * 2, 1, 2)
+            for i in range(3):
+                tageszeitenLayout.addWidget(self.lineEditDefaultInsulin[i], 2, i * 2, 1, 1)
+                tageszeitenLayout.addWidget(labelIe[i], 2, i * 2 + 1, 1, 1)
+            berechnungsparameterLayout.addLayout(tageszeitenLayout, 2, 1, 3, 2)
+            berechnungsparameterLayout.addWidget(labelAnzahlBlutzuckerereichsstufen, 5, 0, 1, 1)
+            berechnungsparameterLayout.addWidget(self.lineEditAnzahlBlutzuckerbereichsstufen, 5, 1, 1, 2)
+            berechnungsparameterLayout.addWidget(labelUntersteBereichsstufe, 6, 0, 1, 1)
+            berechnungsparameterLayout.addWidget(self.lineEditUntersteBereichsstufe, 6, 1, 1, 1)
+            berechnungsparameterLayout.addWidget(self.labelEinheitUntersteBereichsstufe, 6, 2, 1, 1)
+            berechnungsparameterLayout.addWidget(labelBereichsstufengroesse, 7, 0, 1, 1)
+            berechnungsparameterLayout.addWidget(self.lineEditBereichsstufengroesse, 7, 1, 1, 1)
+            berechnungsparameterLayout.addWidget(self.labelEinheitBereichsstufengroesse, 7, 2, 1, 1)
 
             # Groupbox Mahlzeiteninsulin
             groupBoxMahlzeiteninsulin = QGroupBox("Mahlzeiteninsulin")
@@ -818,6 +837,10 @@ class MainWindow(QMainWindow):
             if re.match(befaktorPattern, self.lineEditBeFaktoren[i].text()) == None:
                 fehler.append("BE-Faktoren ungültig")
                 break
+        for i in range(3):
+            if re.match(zahlPattern, self.lineEditDefaultInsulin[i].text()) == None:
+                fehler.append("Insulindosen bei normalem Blutzucker ungültig")
+                break
         if re.match(zahlPattern, self.lineEditAnzahlBlutzuckerbereichsstufen.text()) == None:
             fehler.append("Anzahl Bereichsstufen ungültig")
         if re.match(kommazahlPattern, self.lineEditUntersteBereichsstufe.text()) == None:
@@ -868,6 +891,13 @@ class MainWindow(QMainWindow):
         mittagsElement.text = self.lineEditBeFaktoren[1].text().replace(",", ".")
         abendsElement = ElementTree.Element("abends")
         abendsElement.text = self.lineEditBeFaktoren[2].text().replace(",", ".")
+        defaultInsulinElement = ElementTree.Element("defaultinsulin")
+        morgensElementInsulin = ElementTree.Element("morgens")
+        morgensElementInsulin.text = self.lineEditDefaultInsulin[0].text()
+        mittagsElementInsulin = ElementTree.Element("mittags")
+        mittagsElementInsulin.text = self.lineEditDefaultInsulin[1].text()
+        abendsElementInsulin = ElementTree.Element("abends")
+        abendsElementInsulin.text = self.lineEditDefaultInsulin[2].text()
         anzahlblutzuckerbereichsstufenElement = ElementTree.Element("anzahlblutzuckerbereichsstufen")
         anzahlblutzuckerbereichsstufenElement.text = self.lineEditAnzahlBlutzuckerbereichsstufen.text()
         untersteblutzuckerstufeElement = ElementTree.Element("untersteblutzuckerstufe")
@@ -877,10 +907,14 @@ class MainWindow(QMainWindow):
         befaktorenElement.append(morgensElement)
         befaktorenElement.append(mittagsElement)
         befaktorenElement.append(abendsElement)
+        defaultInsulinElement.append(morgensElementInsulin)
+        defaultInsulinElement.append(mittagsElementInsulin)
+        defaultInsulinElement.append(abendsElementInsulin)
         berechnungsparameterElement.append(blutzuckerzielElement)
         berechnungsparameterElement.append(korrekturElement)
         berechnungsparameterElement.append(einheitElement)
         berechnungsparameterElement.append(befaktorenElement)
+        berechnungsparameterElement.append(defaultInsulinElement)
         berechnungsparameterElement.append(anzahlblutzuckerbereichsstufenElement)
         berechnungsparameterElement.append(untersteblutzuckerstufeElement)
         berechnungsparameterElement.append(bereichsstufengroesseElement)
@@ -911,12 +945,16 @@ class MainWindow(QMainWindow):
         befaktoren = []
         for i in range(3):
             befaktoren.append(float(self.lineEditBeFaktoren[i].text().replace(",", ".")))
+        defaultinsulinmengen = []
+        for i in range(3):
+            defaultinsulinmengen.append(float(self.lineEditDefaultInsulin[i].text()))
         korrektur = float(self.lineEditKorrektur.text().replace(",", "."))
         einheit = self.blutzuckereinheit
         anzahlBereichsstufen = int(self.lineEditAnzahlBlutzuckerbereichsstufen.text())
         untersteBereichsstufe = float(self.lineEditUntersteBereichsstufe.text().replace(",", "."))
         stufengroesse = float(self.lineEditBereichsstufengroesse.text().replace(",", "."))
         insulinplan = class_insulinplan.Insulinplan(blutzuckerziel, befaktoren, korrektur, einheit)
+        insulinplan.setDefaultInsulinEinheiten(defaultinsulinmengen)
         insulinplan.setAnzahlStufen(anzahlBereichsstufen)
         insulinplan.setUntersteStufe(untersteBereichsstufe)
         insulinplan.setStufengroesse(stufengroesse)
