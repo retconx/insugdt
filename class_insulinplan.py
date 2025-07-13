@@ -77,50 +77,59 @@ class Insulinplan:
     
     def getZeilen(self):
         plan = []
-        insulinmengen = []
-        for stufe in range (self.anzahlStufen):
-            insulinmengen.clear()
-            insulinmengentagessumme = 0
-            for tageszeit in range(3): # 0=morgens, 1=mittags, 2=abebnds
-                if self.blutzuckereinheit == class_enums.Blutzuckereinheit.MG_DL:
-                    untererWert = self.untersteStufe + stufe * self.stufengroesse
+        for stufe in range(-1, self.anzahlStufen, 1):
+            untererWert = 0
+            obererWert = 0
+            if stufe == -1:
+                untererWert = self.untersteStufe - self.stufengroesse
+            else:
+                untererWert = self.untersteStufe + stufe * self.stufengroesse
+            if self.blutzuckereinheit == class_enums.Blutzuckereinheit.MG_DL:
                     obererWert = untererWert + self.stufengroesse - 1
-                else:
-                    untererWert = self.untersteStufe + stufe * self.stufengroesse
-                    obererWert = untererWert + self.stufengroesse - 0.1
-                insulinmenge = (self.untersteStufe + stufe * self.stufengroesse - self.blutzuckerZiel) / self.korrektur * self.beFaktoren[tageszeit] + self.defaultInsulinEinheiten[tageszeit]
-                if self.blutzuckerZiel - obererWert > 0:
-                    insulinmenge = insulinmenge / (2 * pow(2, int((self.blutzuckerZiel - obererWert) / self.stufengroesse)))
-                insulinmenge = int(insulinmenge + 0.5)
-                if insulinmenge >= 0:
-                    insulinmengen.append(insulinmenge)
-                    insulinmengentagessumme += insulinmenge
-                else:
-                    insulinmengen.append(0)
-            if stufe == self.anzahlStufen - 1:
-                blutzuckerbereich = "Ab " + "{:.1f}".format(self.untersteStufe + stufe * self.stufengroesse).replace(".", ",")
+            else:
+                obererWert = untererWert + self.stufengroesse - 0.1
+            insulinmengen = self.getInsulinmengen(untererWert, obererWert)
+            if untererWert <= self.blutzuckerZiel and obererWert >= self.blutzuckerZiel:
+                insulinmengen = ([int(menge) for menge in self.defaultInsulinEinheiten], int(sum(self.defaultInsulinEinheiten)))
+            blutzuckerbereich = ""
+            untereGrenze = ""
+            obereGrenze = ""
+            if stufe == - 1:
                 if self.blutzuckereinheit == class_enums.Blutzuckereinheit.MG_DL:
-                    blutzuckerbereich = "Ab " + "{:.0f}".format(self.untersteStufe + stufe * self.stufengroesse)
+                    blutzuckerbereich = "Bis " + "{:.0f}".format(obererWert)
+                else:
+                    blutzuckerbereich = "Bis " + "{:.1f}".format(obererWert).replace(".", ",")
+            elif stufe == self.anzahlStufen - 1:
+                if self.blutzuckereinheit == class_enums.Blutzuckereinheit.MG_DL:
+                    blutzuckerbereich = "Ab " + "{:.0f}".format(untererWert)
+                else:
+                    blutzuckerbereich = "Ab " + "{:.1f}".format(untererWert).replace(".", ",")
             else:
                 if self.blutzuckereinheit == class_enums.Blutzuckereinheit.MG_DL:
-                    untererWert = "{:.0f}".format(self.untersteStufe + stufe * self.stufengroesse)
-                    obererWert = "{:.0f}".format(self.untersteStufe + (stufe + 1) * self.stufengroesse - 1)
+                    untereGrenze = "{:.0f}".format(untererWert)
+                    obereGrenze = "{:.0f}".format(obererWert)
                 else:
-                    untererWert = "{:.1f}".format(self.untersteStufe + stufe * self.stufengroesse).replace(".", ",")
-                    obererWert = "{:.1f}".format(self.untersteStufe + (stufe +1 ) * self.stufengroesse - 0.1).replace(".", ",")
-                blutzuckerbereich =  untererWert + " - " + obererWert
-            plan.append([blutzuckerbereich, insulinmengen.copy(), insulinmengentagessumme])
-        # Unterste Stufe einfügen
-        untersteInsulinmengen = []
-        untersteInsulinSumme = 0
-        for i in range(3):
-            untersteInsulinmengen.append(int(plan[0][1][i] / 2 + 0.5))
-            untersteInsulinSumme += int(plan[0][1][i] / 2 + 0.5)
-        untererWert = str(int(self.untersteStufe))
-        if self.blutzuckereinheit == class_enums.Blutzuckereinheit.MMOL_L:
-            untererWert = "{:.1f}".format(self.untersteStufe)
-        plan.insert(0, ["Unter " + untererWert, untersteInsulinmengen,untersteInsulinSumme])
+                    untereGrenze = "{:.1f}".format(untererWert).replace(".", ",")
+                    obereGrenze = "{:.1f}".format(obererWert).replace(".", ",")
+                blutzuckerbereich =  untereGrenze + " - " + obereGrenze
+            plan.append([blutzuckerbereich, insulinmengen[0], insulinmengen[1]])
         return plan
+    
+    def getInsulinmengen (self, blutzuckerwert:float, obererWert:float):
+        unterhalbZiel = self.blutzuckerZiel - obererWert > 0
+        insulinmengen = []
+        insulinmengentagessumme = 0
+        for tageszeit in range(3): # 0=morgens, 1=mittags, 2=abebnds
+            insulinmenge = (blutzuckerwert - self.blutzuckerZiel) / self.korrektur * self.beFaktoren[tageszeit] + self.defaultInsulinEinheiten[tageszeit]
+            if unterhalbZiel:
+                insulinmenge = insulinmenge / (2 * pow(2, int((self.blutzuckerZiel - obererWert) / self.stufengroesse)))
+            insulinmenge = int(insulinmenge + 0.5)
+            if insulinmenge >= 0:
+                insulinmengen.append(insulinmenge)
+                insulinmengentagessumme += insulinmenge
+            else:
+                insulinmengen.append(0)
+        return (insulinmengen, insulinmengentagessumme)
 
     # Statische Methoden
     @staticmethod
