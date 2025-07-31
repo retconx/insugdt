@@ -46,6 +46,7 @@ class EinstellungenAllgemein(QDialog):
         self.dokuverzeichnis = configIni["Allgemein"]["dokuverzeichnis"]
         self.vorherigeDokuLaden = configIni["Allgemein"]["vorherigedokuladen"] == "1"
         self.blutzuckereinheit = class_enums.Blutzuckereinheit(configIni["Allgemein"]["blutzuckereinheit"])
+        self.beFaktorStandardschritt = configIni["Allgemein"]["befaktorstandardschritt"]
 
         self.setWindowTitle("Allgemeine Einstellungen")
         self.setMinimumWidth(500)
@@ -71,9 +72,11 @@ class EinstellungenAllgemein(QDialog):
         groupboxLayoutEinrichtung.addWidget(self.lineEditEinrichtungsname)
         groupboxEinrichtung.setLayout(groupboxLayoutEinrichtung)
 
-        # Groupbox Standardblutzuckereinheit
-        groupboxStandardBlutzuckereinheit = QGroupBox("Standard-Blutzuckereinheit")
-        groupboxStandardBlutzuckereinheit.setFont(self.fontBold)    
+        # Groupbox Formularvorgaben
+        groupboxForomularvorgaben = QGroupBox("Formularvorgaben")
+        groupboxForomularvorgaben.setFont(self.fontBold)    
+        labelBlutzuckereinheit = QLabel("Blutzuckereinheit:")
+        labelBlutzuckereinheit.setFont(self.fontNormal)
         self.radioButtonBlutzuckereinheitMg = QRadioButton(class_enums.Blutzuckereinheit.MG_DL.value)
         self.radioButtonBlutzuckereinheitMg.setFont(self.fontNormal)
         self.radioButtonBlutzuckereinheitMMol = QRadioButton(class_enums.Blutzuckereinheit.MMOL_L.value)
@@ -82,11 +85,21 @@ class EinstellungenAllgemein(QDialog):
             self.radioButtonBlutzuckereinheitMg.setChecked(True)
         else:
             self.radioButtonBlutzuckereinheitMMol.setChecked(True)
-        groupboxLayoutStandardBlutzuckereinheit = QHBoxLayout()
-        groupboxLayoutStandardBlutzuckereinheit.addWidget(self.radioButtonBlutzuckereinheitMg)
-        groupboxLayoutStandardBlutzuckereinheit.addWidget(self.radioButtonBlutzuckereinheitMMol)
-        groupboxStandardBlutzuckereinheit.setLayout(groupboxLayoutStandardBlutzuckereinheit)
-
+        labelBeFaktorStandardschritt = QLabel("BE-Faktor-Standardänderungsschritt:")
+        labelBeFaktorStandardschritt.setFont(self.fontNormal)
+        self.lineEditBeFaktorStandardschritt = QLineEdit(self.beFaktorStandardschritt.replace(".", ","))
+        self.lineEditBeFaktorStandardschritt.setFont(self.fontNormal)
+        labelMax2Nachkommastellen = QLabel("(maximal zwei Nachkommastellen)")
+        labelMax2Nachkommastellen.setFont(self.fontNormal)
+        
+        groupboxLayoutFormularvorgaben = QGridLayout()
+        groupboxLayoutFormularvorgaben.addWidget(labelBlutzuckereinheit, 0, 0, 1, 2)
+        groupboxLayoutFormularvorgaben.addWidget(self.radioButtonBlutzuckereinheitMg, 1, 0, 1, 1)
+        groupboxLayoutFormularvorgaben.addWidget(self.radioButtonBlutzuckereinheitMMol, 1, 1, 1, 1)
+        groupboxLayoutFormularvorgaben.addWidget(labelBeFaktorStandardschritt, 2, 0, 1, 2)
+        groupboxLayoutFormularvorgaben.addWidget(self.lineEditBeFaktorStandardschritt, 3, 0, 1, 1)
+        groupboxLayoutFormularvorgaben.addWidget(labelMax2Nachkommastellen, 3, 1, 1, 1)
+        groupboxForomularvorgaben.setLayout(groupboxLayoutFormularvorgaben)
         # Groupbox Dokumentationsverwaltung
         groupboxDokumentationsverwaltung = QGroupBox("Dokumentationsverwaltung")
         groupboxDokumentationsverwaltung.setFont(self.fontBold)
@@ -192,7 +205,7 @@ class EinstellungenAllgemein(QDialog):
         groupBoxUpdates.setLayout(groupBoxUpdatesLayoutG)
 
         dialogLayoutV.addWidget(groupboxEinrichtung)
-        dialogLayoutV.addWidget(groupboxStandardBlutzuckereinheit)
+        dialogLayoutV.addWidget(groupboxForomularvorgaben)
         dialogLayoutV.addWidget(groupboxDokumentationsverwaltung)
         dialogLayoutV.addWidget(groupboxPdfErstellung)
         dialogLayoutV.addWidget(groupboxVorlagen)
@@ -257,12 +270,17 @@ class EinstellungenAllgemein(QDialog):
 
     def accept(self):
         regexPattern = "[/.,]"
-        test = re.search(regexPattern, self.lineEditPdfBezeichnung.text())
-        if test != None:
+        beFaktorSchrittPattern = r"^\d([.,]\d{1,2})?$"
+        if re.search(regexPattern, self.lineEditPdfBezeichnung.text()) != None:
             mb = QMessageBox(QMessageBox.Icon.Information, "Hinweis von InsuGDT", "Die PDF-Bezeichnung enthält unerlaubte Zeichen (" + regexPattern[1:-1] + ")", QMessageBox.StandardButton.Ok)
             mb.exec()
             self.lineEditPdfBezeichnung.setFocus()
             self.lineEditPdfBezeichnung.selectAll()
+        elif re.match(beFaktorSchrittPattern, self.lineEditBeFaktorStandardschritt.text()) == None:
+            mb = QMessageBox(QMessageBox.Icon.Information, "Hinweis von InsuGDT", "Der BE-Faktor-Standardänderungsschritt ist unzulässig.", QMessageBox.StandardButton.Ok)
+            mb.exec()
+            self.lineEditBeFaktorStandardschritt.setFocus()
+            self.lineEditBeFaktorStandardschritt.selectAll()
         else:
             if self.lineEditPdfBezeichnung.text() == "":
                 self.lineEditPdfBezeichnung.setText(self.lineEditPdfBezeichnung.placeholderText())

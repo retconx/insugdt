@@ -25,7 +25,8 @@ class Insulinplan:
         self.miName = ""
         self.biName = ""
         self.biDosis = 0
-        self.biVerabreichungsintervall = class_enums.Verabreichungsintervall.TÄGLICH
+        self.biVerabreichungsintervall = class_enums.Verabreichungsintervall.TAEGLICH
+        self.moMiAb = class_enums.MoMiAb.MORGENS
 
     def setDefaultInsulinEinheiten(self, einheiten:list):
         self.defaultInsulinEinheiten = einheiten
@@ -74,6 +75,12 @@ class Insulinplan:
 
     def getBiVerabreichungsintervall(self):
         return self.biVerabreichungsintervall
+    
+    def setMoMiAb(self, tageszeit:class_enums.MoMiAb):
+        self.moMiAb = tageszeit
+
+    def getMoMiAb(self):
+        return self.moMiAb
     
     def getZeilen(self):
         plan = []

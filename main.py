@@ -25,7 +25,10 @@ from PySide6.QtWidgets import (
     QTextEdit,
     QStatusBar,
     QFileDialog,
-    QCheckBox
+    QCheckBox,
+    QDoubleSpinBox,
+    QButtonGroup,
+    QComboBox
 )
 import requests
 
@@ -113,12 +116,15 @@ class MainWindow(QMainWindow):
             biName = basalinsulinElement.findtext("name") # type: ignore
             biDosis = basalinsulinElement.findtext("dosis") # type: ignore
             biVerabreichung = basalinsulinElement.findtext("verabreichungsintervall") # type: ignore
+            biMoMiAb = "morgens" # ab 1.2.0
+            if basalinsulinElement.find("momiab") != None: # type: ignore
+                biMoMiAb = basalinsulinElement.findtext("momiab") # type: ignore
             self.lineEditBlutzuckerziel.setText(str(blutzuckerziel).replace(".", ","))
             self.lineEditKorrektur.setText(str(korrektur).replace(".", ","))
             self.labelEinheitBlutuckerziel.setText(str(einheit))
             self.labelEinheitKorrektur.setText(str(einheit))
             for i in range(3):
-                self.lineEditBeFaktoren[i].setText(str(beFaktorenListe[i]).replace(".", ","))
+                self.doubleSpinBoxBeFaktoren[i].setValue(float(beFaktorenListe[i])) # type: ignore
             for i in range(3):
                 self.lineEditDefaultInsulin[i].setText(str(defaultInsulinListe[i]))
             self.lineEditAnzahlBlutzuckerbereichsstufen.setText(str(anzahlblutzuckerbereichsstufen))
@@ -133,10 +139,15 @@ class MainWindow(QMainWindow):
             self.lineEditMiName.setText(str(miName))
             self.lineEditBiName.setText(str(biName))
             self.lineEditBiDosis.setText(str(biDosis))
-            if biVerabreichung == class_enums.Verabreichungsintervall.WOECHENTLICH.value:
-                self.radioButtonWoechentlich.setChecked(True)
+            if biVerabreichung == "wöchentlich":
+                biVerabreichung = "montags"
+            self.comboBoxVerabreichung.setCurrentText(str(biVerabreichung))
+            if biMoMiAb == class_enums.MoMiAb.MORGENS.value:
+                self.radioButtonMorgens.setChecked(True)
+            elif biMoMiAb == class_enums.MoMiAb.MITTAGS.value:
+                self.radioButtonMittags.setChecked(True)
             else:
-                self.radioButtonTaeglich.setChecked(True)
+                self. radioButtonAbends.setChecked(True)
             logger.logger.info("Eingabeformular vor-ausgefüllt")
             self.setCursor(Qt.CursorShape.ArrowCursor)
         except Exception as e:
@@ -211,6 +222,10 @@ class MainWindow(QMainWindow):
         self.blutzuckereinheit = class_enums.Blutzuckereinheit(self.configIni["Allgemein"]["blutzuckereinheit"])
 
         # Nachträglich hinzufefügte Options
+        # 1.2.0
+        self.beFaktorStandardschritt = 0.25
+        if self.configIni.has_option("Allgemein", "befaktorstandardschritt"):
+            self.beFaktorStandardschritt = float(self.configIni["Allgemein"]["befaktorstandardschritt"])
         # /Nachträglich hinzufefügte Options
 
         z = self.configIni["GDT"]["zeichensatz"]
@@ -272,6 +287,9 @@ class MainWindow(QMainWindow):
                 self.configIni["Allgemein"]["version"] = configIniBase["Allgemein"]["version"]
                 self.configIni["Allgemein"]["releasedatum"] = configIniBase["Allgemein"]["releasedatum"] 
                 # config.ini aktualisieren
+                # 1.1.1 -> 1.2.0: ["Allgemein"]["befaktorstandardschritt"] hinzufügen
+                if not self.configIni.has_option("Allgemein", "befaktorstandardschritt"):
+                    self.configIni["Allgemein"]["befaktorstandardschritt"] = "0.25"
                 # /config.ini aktualisieren
 
                 with open(os.path.join(self.configPath, "config.ini"), "w") as configfile:
@@ -407,11 +425,17 @@ class MainWindow(QMainWindow):
             labelMittags.setFont(self.fontNormal)
             labelAbends = QLabel("abends")
             labelAbends.setFont(self.fontNormal)
-            self.lineEditBeFaktoren = []
-            defaultBeFaktoren = ["2,0", "1", "1,5"]
+            self.doubleSpinBoxBeFaktoren = []
+            defaultBeFaktoren = [2, 1, 1.5]
             for i in range(3):
-                self.lineEditBeFaktoren.append(QLineEdit(defaultBeFaktoren[i]))
-                self.lineEditBeFaktoren[i].setFont(self.fontNormal)
+                self.doubleSpinBoxBeFaktoren.append(QDoubleSpinBox())
+                self.doubleSpinBoxBeFaktoren[i].setValue(defaultBeFaktoren[i])
+                self.doubleSpinBoxBeFaktoren[i].setMinimum(0)
+                self.doubleSpinBoxBeFaktoren[i].setMaximum(10)
+                self.doubleSpinBoxBeFaktoren[i].setSingleStep(self.beFaktorStandardschritt)
+                self.doubleSpinBoxBeFaktoren[i].setDecimals(2)
+                self.doubleSpinBoxBeFaktoren[i].setFont(self.fontNormal)
+                self.doubleSpinBoxBeFaktoren[i]
             labelDefaultInsulin = QLabel("Insulindosis bei normalem Blutzucker")
             labelDefaultInsulin.setFont(self.fontNormal)
             self.lineEditDefaultInsulin = []
@@ -452,7 +476,7 @@ class MainWindow(QMainWindow):
             tageszeitenLayout.addWidget(labelMittags, 0, 2, 1, 2)
             tageszeitenLayout.addWidget(labelAbends, 0, 4, 1, 2)
             for i in range(3):
-                tageszeitenLayout.addWidget(self.lineEditBeFaktoren[i], 1, i * 2, 1, 2)
+                tageszeitenLayout.addWidget(self.doubleSpinBoxBeFaktoren[i], 1, i * 2, 1, 2)
             for i in range(3):
                 tageszeitenLayout.addWidget(self.lineEditDefaultInsulin[i], 2, i * 2, 1, 1)
                 tageszeitenLayout.addWidget(labelIe[i], 2, i * 2 + 1, 1, 1)
@@ -494,12 +518,23 @@ class MainWindow(QMainWindow):
             labelBiEinheit.setFont(self.fontNormal)
             labelBiVerabreichungsintervall = QLabel("Verabreichungsintervall")
             labelBiVerabreichungsintervall.setFont(self.fontNormal)
-            verabreichungLayout = QVBoxLayout()
-            self.radioButtonTaeglich = QRadioButton("täglich")
-            self.radioButtonTaeglich.setFont(self.fontNormal)
-            self.radioButtonWoechentlich = QRadioButton("wöchentlich")
-            self.radioButtonWoechentlich.setFont(self.fontNormal)
-            self.radioButtonTaeglich.setChecked(True)
+            self.comboBoxVerabreichung = QComboBox()
+            self.comboBoxVerabreichung.setFont(self.fontNormal)
+            for v in class_enums.Verabreichungsintervall:
+                self.comboBoxVerabreichung.addItem(v.value)
+            self.comboBoxVerabreichung.setCurrentIndex(0)
+            momiabLayout = QHBoxLayout()
+            buttonGroupMoMiAb = QButtonGroup(self)
+            self.radioButtonMorgens = QRadioButton("morgens")
+            self.radioButtonMorgens.setFont(self.fontNormal)
+            self.radioButtonMittags = QRadioButton("mittags")
+            self.radioButtonMittags.setFont(self.fontNormal)
+            self.radioButtonAbends = QRadioButton("abends")
+            self.radioButtonAbends.setFont(self.fontNormal)
+            self.radioButtonMorgens.setChecked(True)
+            buttonGroupMoMiAb.addButton(self.radioButtonMorgens)
+            buttonGroupMoMiAb.addButton(self.radioButtonMittags)
+            buttonGroupMoMiAb.addButton(self.radioButtonAbends)
             groupBoxBasalinsulin.setLayout(basalinsulinLayout)
             basalinsulinLayout.addWidget(labelBiName, 0, 0, 1, 1)
             basalinsulinLayout.addWidget(self.lineEditBiName, 0, 1, 1, 2)
@@ -507,9 +542,11 @@ class MainWindow(QMainWindow):
             basalinsulinLayout.addWidget(self.lineEditBiDosis, 1, 1, 1, 1)
             basalinsulinLayout.addWidget(labelBiEinheit, 1, 2, 1, 1)
             basalinsulinLayout.addWidget(labelBiVerabreichungsintervall, 2, 0, 1, 1)
-            verabreichungLayout.addWidget(self.radioButtonTaeglich)
-            verabreichungLayout.addWidget(self.radioButtonWoechentlich)
-            basalinsulinLayout.addLayout(verabreichungLayout, 2, 1, 1, 1)
+            basalinsulinLayout.addWidget(self.comboBoxVerabreichung, 2, 1, 1, 1)
+            momiabLayout.addWidget(self.radioButtonMorgens)
+            momiabLayout.addWidget(self.radioButtonMittags)
+            momiabLayout.addWidget(self.radioButtonAbends)
+            basalinsulinLayout.addLayout(momiabLayout, 2, 2, 1, 1)
 
             # Groupbox Blutzuckereinheit
             groupBoxBlutzuckereinheit = QGroupBox("Blutzuckereinheit")
@@ -826,7 +863,7 @@ class MainWindow(QMainWindow):
             fehler: list
         """
         kommazahlPattern = r"^\d+([,.]\d+)?$"
-        befaktorPattern = r"^\d([,.]\d)?$"
+        befaktorPattern = r"^\d([.,]\d{1,2})?$"
         zahlPattern = r"^\d+$"
         fehler = []
         if re.match(kommazahlPattern, self.lineEditBlutzuckerziel.text()) == None:
@@ -834,7 +871,7 @@ class MainWindow(QMainWindow):
         if re.match(kommazahlPattern, self.lineEditKorrektur.text())== None:
             fehler.append("Korrektur ungültig")
         for i in range(3):
-            if re.match(befaktorPattern, self.lineEditBeFaktoren[i].text()) == None:
+            if re.match(befaktorPattern, str(self.doubleSpinBoxBeFaktoren[i].value())) == None:
                 fehler.append("BE-Faktoren ungültig")
                 break
         for i in range(3):
@@ -886,11 +923,11 @@ class MainWindow(QMainWindow):
         einheitElement.text = self.blutzuckereinheit.value
         befaktorenElement = ElementTree.Element("befaktoren")
         morgensElement = ElementTree.Element("morgens")
-        morgensElement.text = self.lineEditBeFaktoren[0].text().replace(",", ".")
+        morgensElement.text = str(self.doubleSpinBoxBeFaktoren[0].value()).replace(",", ".")
         mittagsElement = ElementTree.Element("mittags")
-        mittagsElement.text = self.lineEditBeFaktoren[1].text().replace(",", ".")
+        mittagsElement.text = str(self.doubleSpinBoxBeFaktoren[1].value()).replace(",", ".")
         abendsElement = ElementTree.Element("abends")
-        abendsElement.text = self.lineEditBeFaktoren[2].text().replace(",", ".")
+        abendsElement.text = str(self.doubleSpinBoxBeFaktoren[2].value()).replace(",", ".")
         defaultInsulinElement = ElementTree.Element("defaultinsulin")
         morgensElementInsulin = ElementTree.Element("morgens")
         morgensElementInsulin.text = self.lineEditDefaultInsulin[0].text()
@@ -927,14 +964,19 @@ class MainWindow(QMainWindow):
         dosisElement = ElementTree.Element("dosis")
         dosisElement.text = self.lineEditBiDosis.text()
         verabreichungsintervallElement = ElementTree.Element("verabreichungsintervall")
-        if self.radioButtonTaeglich.isChecked():
-            verabreichungsintervallElement.text = "täglich"
+        verabreichungsintervallElement.text = self.comboBoxVerabreichung.currentText()
+        moMiAbElement = ElementTree.Element("momiab")
+        if self.radioButtonMorgens.isChecked():
+            moMiAbElement.text = "morgens"
+        elif self.radioButtonMittags.isChecked():
+            moMiAbElement.text = "mittags"
         else:
-            verabreichungsintervallElement.text = "wöchentlich"
+            moMiAbElement.text = "abends"
         mahlzeiteninsulinElement.append(nameMElement)
         basalinsulinElement.append(nameBElement)
         basalinsulinElement.append(dosisElement)
         basalinsulinElement.append(verabreichungsintervallElement)
+        basalinsulinElement.append(moMiAbElement)
         insulinplanElement.append(berechnungsparameterElement)
         insulinplanElement.append(mahlzeiteninsulinElement)
         insulinplanElement.append(basalinsulinElement)
@@ -944,7 +986,7 @@ class MainWindow(QMainWindow):
         blutzuckerziel = float(self.lineEditBlutzuckerziel.text().replace(",", "."))
         befaktoren = []
         for i in range(3):
-            befaktoren.append(float(self.lineEditBeFaktoren[i].text().replace(",", ".")))
+            befaktoren.append(self.doubleSpinBoxBeFaktoren[i].value())
         defaultinsulinmengen = []
         for i in range(3):
             defaultinsulinmengen.append(float(self.lineEditDefaultInsulin[i].text()))
@@ -961,10 +1003,13 @@ class MainWindow(QMainWindow):
         insulinplan.setMiName(self.lineEditMiName.text())
         insulinplan.setBiName(self.lineEditBiName.text())
         insulinplan.setBiDosis(int(self.lineEditBiDosis.text()))
-        if self.radioButtonTaeglich.isChecked():
-            insulinplan.setBiVerabreichungsintervall(class_enums.Verabreichungsintervall.TÄGLICH)
-        else: 
-            insulinplan.setBiVerabreichungsintervall(class_enums.Verabreichungsintervall.WOECHENTLICH)
+        insulinplan.setBiVerabreichungsintervall(class_enums.Verabreichungsintervall(self.comboBoxVerabreichung.currentText()))
+        if self.radioButtonMorgens.isChecked():
+            insulinplan.setMoMiAb(class_enums.MoMiAb.MORGENS)
+        elif self.radioButtonMittags.isChecked():
+            insulinplan.setMoMiAb(class_enums.MoMiAb.MITTAGS)
+        else:
+            insulinplan.setMoMiAb(class_enums.MoMiAb.ABENDS)
         return insulinplan
     
     def pushButtonVorschauClicked(self):
@@ -981,7 +1026,12 @@ class MainWindow(QMainWindow):
             if len(insulinplan.getZeilen()) > 0:
                 text = "<style>table.insulinplan { margin-top:6px;border-collapse:collapse } table.insulinplan td { padding:2px;border:1px solid rgb(0,0,0);font-weight:normal; } table.insulinplan td.zentriert { padding:2px;border:1px solid rgb(0,0,0);font-weight:normal;text-align:center }</style>"
                 text += "<div style='font-weight:bold;text-align:center'>Insulinspritzplan:</div>"
-                text += "<div style='text-align:left;margin-top:20px'><b>Basalinsulin:</b><br />" + self.lineEditBiName.text() + ": " + self.lineEditBiDosis.text() + " IE einmal " + insulinplan.getBiVerabreichungsintervall().value + "</div>"
+                intervall = insulinplan.getBiVerabreichungsintervall().value 
+                if intervall[-1] == "s":
+                    intervall = intervall[:-1]
+                elif intervall == "täglich":
+                    intervall += " "
+                text += "<div style='text-align:left;margin-top:20px'><b>Basalinsulin:</b><br />" + self.lineEditBiName.text() + ": " + self.lineEditBiDosis.text() + " IE " + intervall + insulinplan.getMoMiAb().value + "</div>"
                 text += "<div style='text-align:left;margin-top:20px'><b>Mahlzeiteninsulin:</b><br />" + self.lineEditMiName.text() + " (siehe Tabelle):</div>"
                 text += "<table class='insulinplan'>"
                 text += "<tr><td><b>Blutzucker</b></td><td class='zentriert'><b>Morgens [IE]</b></td><td class='zentriert'><b>Mittags [IE]</b></td><td class='zentriert'><b>Abends [IE]</b></td><td><b style='font-style:italic'>Summe [IE]<sup>*</sup></i></td></tr>"
@@ -1017,7 +1067,12 @@ class MainWindow(QMainWindow):
             pdf.set_font("Helvetica", "B", 12)
             pdf.cell(0, 0, "Basalinsulin", new_x="LMARGIN", new_y="NEXT")
             pdf.set_font("Helvetica", "", 12)
-            pdf.cell(0, 10, insulinplan.getBiName() + ": " + str(insulinplan.getBiDosis()) + " IE einmal " + insulinplan.getBiVerabreichungsintervall().value)
+            intervall = insulinplan.getBiVerabreichungsintervall().value 
+            if intervall[-1] == "s":
+                intervall = intervall[:-1]
+            elif intervall == "täglich":
+                    intervall += " "
+            pdf.cell(0, 10, insulinplan.getBiName() + ": " + str(insulinplan.getBiDosis()) + " IE " + intervall + insulinplan.getMoMiAb().value)
             pdf.cell(0, 14, "", new_x="LMARGIN", new_y="NEXT")
             pdf.set_font("Helvetica", "B", 12)
             pdf.cell(0, 10, "Mahlzeiteninsulin", new_x="LMARGIN", new_y="NEXT")
@@ -1070,7 +1125,12 @@ class MainWindow(QMainWindow):
                 gd.addZeile("6304", self.configIni["Allgemein"]["pdfbezeichnung"])
                 gd.addZeile("6305", os.path.join(basedir, "pdf/insulinspritzplan_temp.pdf"))
             gd.addZeile("6220", "Insulinspritzplan")
-            gd.addZeile("6228", "Basalinsulin: " + insulinplan.getBiName() + ": " + str(insulinplan.getBiDosis()) + " IE einmal " + insulinplan.getBiVerabreichungsintervall().value)
+            intervall = insulinplan.getBiVerabreichungsintervall().value 
+            if intervall[-1] == "s":
+                intervall = intervall[:-1]
+            elif intervall == "täglich":
+                    intervall += " "
+            gd.addZeile("6228", "Basalinsulin: " + insulinplan.getBiName() + ": " + str(insulinplan.getBiDosis()) + " IE " + intervall + insulinplan.getMoMiAb().value)
             gd.addZeile("6228", "Mahlzeiteninsulin: " + insulinplan.getMiName() + " (siehe Tabelle):")
             space = "          "
             gd.addZeile("6228", "Blutzucker [" + self.blutzuckereinheit.value + "]" + space + "Morgens [IE]" + space + "Mittags [IE]" + space + "Abends [IE]")
@@ -1166,6 +1226,7 @@ class MainWindow(QMainWindow):
                 self.configIni["Allgemein"]["blutzuckereinheit"] = class_enums.Blutzuckereinheit.MG_DL.value
             else: 
                 self.configIni["Allgemein"]["blutzuckereinheit"] = class_enums.Blutzuckereinheit.MMOL_L.value
+            self.configIni["Allgemein"]["befaktorstandardschritt"] = de.lineEditBeFaktorStandardschritt.text().replace(",", ".")
             self.configIni["Allgemein"]["dokuverzeichnis"] = de.lineEditArchivierungsverzeichnis.text()
             self.configIni["Allgemein"]["vorherigedokuladen"] = "0"
             if de.checkboxVorherigeDokuLaden.isChecked():
