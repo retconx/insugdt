@@ -105,8 +105,10 @@ class MainWindow(QMainWindow):
             self.blutzuckereinheit = class_enums.Blutzuckereinheit(einheit)
             beFaktorenElement = berechnungsparameterElement.find("befaktoren") # type: ignore
             beFaktorenListe = [beFaktorenElement.findtext("morgens"), beFaktorenElement.findtext("mittags"), beFaktorenElement.findtext("abends")] # type: ignore
-            defaultInsulinElement = berechnungsparameterElement.find("defaultinsulin") # type: ignore
-            defaultInsulinListe = [defaultInsulinElement.findtext("morgens"), defaultInsulinElement.findtext("mittags"), defaultInsulinElement.findtext("abends")] # type: ignore
+            defaultInsulinListe = ["", "", ""]
+            if berechnungsparameterElement.find("defaultinsulin") != None: # type: ignore
+                defaultInsulinElement = berechnungsparameterElement.find("defaultinsulin") # type: ignore
+                defaultInsulinListe = [defaultInsulinElement.findtext("morgens"), defaultInsulinElement.findtext("mittags"), defaultInsulinElement.findtext("abends")] # type: ignore
             anzahlblutzuckerbereichsstufen = berechnungsparameterElement.findtext("anzahlblutzuckerbereichsstufen") # type: ignore
             untersteblutzuckerstufe = berechnungsparameterElement.findtext("untersteblutzuckerstufe") # type: ignore
             bereichsstuferngroesse = berechnungsparameterElement.findtext("bereichsstuferngroesse") # type: ignore
@@ -125,8 +127,9 @@ class MainWindow(QMainWindow):
             self.labelEinheitKorrektur.setText(str(einheit))
             for i in range(3):
                 self.doubleSpinBoxBeFaktoren[i].setValue(float(beFaktorenListe[i])) # type: ignore
-            for i in range(3):
-                self.lineEditDefaultInsulin[i].setText(str(defaultInsulinListe[i]))
+            if len(defaultInsulinListe) > 0:
+                for i in range(3):
+                    self.lineEditDefaultInsulin[i].setText(str(defaultInsulinListe[i]))
             self.lineEditAnzahlBlutzuckerbereichsstufen.setText(str(anzahlblutzuckerbereichsstufen))
             self.lineEditUntersteBereichsstufe.setText(str(untersteblutzuckerstufe))
             self.labelEinheitUntersteBereichsstufe.setText(str(einheit))
