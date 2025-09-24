@@ -18,7 +18,7 @@ class Insulinplan:
         self.beFaktoren = beFaktoren
         self.korrektur = korrektur
         self.blutzuckereinheit = blutzuckereinheit
-        self.defaultInsulinEinheiten = [0, 0, 0]
+        self.defaultInsulinEinheiten = [0, 0, 0, 0]
         self.untersteStufe = 0
         self.anzahlStufen = 0
         self.stufengroesse = 0
@@ -123,10 +123,18 @@ class Insulinplan:
         return plan
     
     def getInsulinmengen (self, blutzuckerwert:float, obererWert:float):
+        """
+        Berechnet die zu verabreichenden Insulinmengen für vier Tageszeiten und berechnet die Summe. Liegt der aktuelle Messwert unterhalb des Blutzuckerzielwertes, wird die berechnete Insulinmenge um die Anzahl der unter des Zielwertes liegenden Stufen halbiert
+        Parameter:
+            blutzuckerwert: float, der aktuelle Messwert
+            obererWert: float der obere Grenzwert des Blutzuckermessbereichs
+        Return:
+            Tupel: (insulinmengen:list der Tageszeiten, insulinmengentagessumme)
+        """
         unterhalbZiel = self.blutzuckerZiel - obererWert > 0
         insulinmengen = []
         insulinmengentagessumme = 0
-        for tageszeit in range(3): # 0=morgens, 1=mittags, 2=abebnds
+        for tageszeit in range(4): # 0=morgens, 1=mittags, 2=nachmittags, 3=abends
             insulinmenge = (blutzuckerwert - self.blutzuckerZiel) / self.korrektur * self.beFaktoren[tageszeit] + self.defaultInsulinEinheiten[tageszeit]
             if unterhalbZiel:
                 insulinmenge = insulinmenge / (2 * pow(2, int((self.blutzuckerZiel - obererWert) / self.stufengroesse)))

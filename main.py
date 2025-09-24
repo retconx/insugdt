@@ -6,7 +6,7 @@ import gdttoolsL
 import xml.etree.ElementTree as ElementTree
 from fpdf import FPDF, enums
 import class_enums, datetime, class_insulinplan
-import dialogUeberInsuGdt, dialogEinstellungenGdt, dialogEinstellungenAllgemein, dialogEinstellungenLanrLizenzschluessel, dialogEinstellungenImportExport, dialogEula, dialogVorlagenVerwalten
+import dialogUeberInsuGdt, dialogEinstellungenGdt, dialogEinstellungenAllgemein, dialogEinstellungenLanrLizenzschluessel, dialogEinstellungenImportExport, dialogEula, dialogVorlagenVerwalten, dialogSpritzEssAbstand
 from PySide6.QtCore import Qt, QSize, QTranslator, QLibraryInfo
 from PySide6.QtGui import QFont, QAction, QKeySequence, QIcon, QDesktopServices
 from PySide6.QtWidgets import (
@@ -98,22 +98,39 @@ class MainWindow(QMainWindow):
             self.setCursor(Qt.CursorShape.WaitCursor)
             baum = ElementTree.parse(xmlDateipdad)
             insulinplanElement = baum.getroot()
+            if insulinplanElement.get("ohnenachmittags") != None:
+                self.checkBoxOhneNachmittags.setChecked(str(insulinplanElement.get("ohnenachmittags")) == "True")
+            if insulinplanElement.get("ohnesea") != None:
+                self.checkBoxOhneSea.setChecked(str(insulinplanElement.get("ohnesea")) == "True")
             berechnungsparameterElement = insulinplanElement.find("berechnungsparameter")
             blutzuckerziel = berechnungsparameterElement.findtext("blutzuckerziel") # type: ignore
             korrektur = berechnungsparameterElement.findtext("korrektur") # type: ignore
             einheit = berechnungsparameterElement.findtext("einheit") # type: ignore
             self.blutzuckereinheit = class_enums.Blutzuckereinheit(einheit)
             beFaktorenElement = berechnungsparameterElement.find("befaktoren") # type: ignore
-            beFaktorenListe = [beFaktorenElement.findtext("morgens"), beFaktorenElement.findtext("mittags"), beFaktorenElement.findtext("abends")] # type: ignore
-            defaultInsulinListe = ["", "", ""]
+            beFaktorenNachnmittags = "1" # ab 1.3.0
+            if beFaktorenElement.find("nachmittags") != None: # type: ignore ab 1.3.0
+                beFaktorenNachnmittags = beFaktorenElement.findtext("nachmittags") # type: ignore
+            beFaktorenListe = [beFaktorenElement.findtext("morgens"), beFaktorenElement.findtext("mittags"), beFaktorenNachnmittags, beFaktorenElement.findtext("abends")] # type: ignore
+            defaultInsulinListe = ["", "", "", ""]
             if berechnungsparameterElement.find("defaultinsulin") != None: # type: ignore
                 defaultInsulinElement = berechnungsparameterElement.find("defaultinsulin") # type: ignore
-                defaultInsulinListe = [defaultInsulinElement.findtext("morgens"), defaultInsulinElement.findtext("mittags"), defaultInsulinElement.findtext("abends")] # type: ignore
+                defaultInsulinNachmittags = "4" # ab 1.3.0
+                if defaultInsulinElement.find("nachmittags") != None: # type: ignore
+                    defaultInsulinNachmittags = defaultInsulinElement.findtext("nachmittags") # type: ignore
+                defaultInsulinListe = [defaultInsulinElement.findtext("morgens"), defaultInsulinElement.findtext("mittags"), defaultInsulinNachmittags, defaultInsulinElement.findtext("abends")] # type: ignore
             anzahlblutzuckerbereichsstufen = berechnungsparameterElement.findtext("anzahlblutzuckerbereichsstufen") # type: ignore
             untersteblutzuckerstufe = berechnungsparameterElement.findtext("untersteblutzuckerstufe") # type: ignore
             bereichsstuferngroesse = berechnungsparameterElement.findtext("bereichsstuferngroesse") # type: ignore
             mahlzeiteninsulinElement = insulinplanElement.find("mahlzeiteninsulin") # type: ignore
             miName = mahlzeiteninsulinElement.findtext("name") # type: ignore
+            miSaeModus = "konstant"
+            miSae = "15"
+            if mahlzeiteninsulinElement.find("spritzessabstand") != None: # type: ignore ab 1.3.0
+                miSaeElement = mahlzeiteninsulinElement.find("spritzessabstand") # type: ignore
+                miSaeModus = str(miSaeElement.get("modus")) # type: ignore konstant oder abhaengig
+                miSae = str(miSaeElement.text) # type: ignore
+            self.seaListe = miSae.split("::")
             basalinsulinElement = insulinplanElement.find("basalinsulin") # type: ignore
             biName = basalinsulinElement.findtext("name") # type: ignore
             biDosis = basalinsulinElement.findtext("dosis") # type: ignore
@@ -125,10 +142,10 @@ class MainWindow(QMainWindow):
             self.lineEditKorrektur.setText(str(korrektur).replace(".", ","))
             self.labelEinheitBlutuckerziel.setText(str(einheit))
             self.labelEinheitKorrektur.setText(str(einheit))
-            for i in range(3):
+            for i in range(4):
                 self.doubleSpinBoxBeFaktoren[i].setValue(float(beFaktorenListe[i])) # type: ignore
             if len(defaultInsulinListe) > 0:
-                for i in range(3):
+                for i in range(4):
                     self.lineEditDefaultInsulin[i].setText(str(defaultInsulinListe[i]))
             self.lineEditAnzahlBlutzuckerbereichsstufen.setText(str(anzahlblutzuckerbereichsstufen))
             self.lineEditUntersteBereichsstufe.setText(str(untersteblutzuckerstufe))
@@ -140,6 +157,19 @@ class MainWindow(QMainWindow):
             else: 
                 self.radioButtonEinheitMmol.setChecked(True)
             self.lineEditMiName.setText(str(miName))
+            for saeNummer in range(len(dialogSpritzEssAbstand.abstaende)):
+                if self.seaListe[0] == self.radioButtonSea[saeNummer].text():
+                    self.radioButtonSea[saeNummer].setChecked(True)
+            if miSaeModus == "konstant":
+                self.radioButtonSaeKonstant.setChecked(True)
+                self.pushButtonSaeAbhaengig.setEnabled(False)
+                for saeNummer in range(len(dialogSpritzEssAbstand.abstaende)):
+                    self.radioButtonSea[saeNummer].setEnabled(True)
+            else:
+                self.radioButtonSaeAbhaengig.setChecked(True)
+                self.pushButtonSaeAbhaengig.setEnabled(True)
+                for saeNummer in range(len(dialogSpritzEssAbstand.abstaende)):
+                    self.radioButtonSea[saeNummer].setEnabled(False)
             self.lineEditBiName.setText(str(biName))
             self.lineEditBiDosis.setText(str(biDosis))
             if biVerabreichung == "wöchentlich":
@@ -158,7 +188,7 @@ class MainWindow(QMainWindow):
                 raise
             else:
                 mb = QMessageBox(QMessageBox.Icon.Warning, "Hinweis von InsuGDT", "Fehler beim Laden der Vorlage (" + xmlDateipdad + "): " + e.args[1], QMessageBox.StandardButton.Ok)
-            mb.exec()
+                mb.exec()
     
     def __init__(self):
         super().__init__()
@@ -411,12 +441,14 @@ class MainWindow(QMainWindow):
             labelBlutzuckerziel.setFont(self.fontNormal)
             self.lineEditBlutzuckerziel = QLineEdit(defaultBlutzuckerziel)
             self.lineEditBlutzuckerziel.setFont(self.fontNormal)
+            self.lineEditBlutzuckerziel.textEdited.connect(self.pushButtonPlanSendenDisable)
             self.labelEinheitBlutuckerziel = QLabel(self.blutzuckereinheit.value)
             self.labelEinheitBlutuckerziel.setFont(self.fontNormal)
             labelKorrektur = QLabel("Blutzuckersenkung/Insulineinheit (Korrektur)")
             labelKorrektur.setFont(self.fontNormal)
             self.lineEditKorrektur = QLineEdit(defaultKorrektur)
             self.lineEditKorrektur.setFont(self.fontNormal) 
+            self.lineEditKorrektur.textEdited.connect(self.pushButtonPlanSendenDisable)
             self.labelEinheitKorrektur = QLabel(self.blutzuckereinheit.value)
             self.labelEinheitKorrektur.setFont(self.fontNormal)
             tageszeitenLayout = QGridLayout()
@@ -426,11 +458,13 @@ class MainWindow(QMainWindow):
             labelMorgens.setFont(self.fontNormal)
             labelMittags = QLabel("mittags")
             labelMittags.setFont(self.fontNormal)
+            labelNachmittags = QLabel("nachmittags")
+            labelNachmittags.setFont(self.fontNormal)
             labelAbends = QLabel("abends")
             labelAbends.setFont(self.fontNormal)
             self.doubleSpinBoxBeFaktoren = []
-            defaultBeFaktoren = [2, 1, 1.5]
-            for i in range(3):
+            defaultBeFaktoren = [2, 1, 1, 1.5]
+            for i in range(4):
                 self.doubleSpinBoxBeFaktoren.append(QDoubleSpinBox())
                 self.doubleSpinBoxBeFaktoren[i].setValue(defaultBeFaktoren[i])
                 self.doubleSpinBoxBeFaktoren[i].setMinimum(0)
@@ -438,31 +472,35 @@ class MainWindow(QMainWindow):
                 self.doubleSpinBoxBeFaktoren[i].setSingleStep(self.beFaktorStandardschritt)
                 self.doubleSpinBoxBeFaktoren[i].setDecimals(2)
                 self.doubleSpinBoxBeFaktoren[i].setFont(self.fontNormal)
-                self.doubleSpinBoxBeFaktoren[i]
+                self.doubleSpinBoxBeFaktoren[i].valueChanged.connect(self.pushButtonPlanSendenDisable)
             labelDefaultInsulin = QLabel("Insulindosis bei normalem Blutzucker")
             labelDefaultInsulin.setFont(self.fontNormal)
             self.lineEditDefaultInsulin = []
             labelIe = []
-            defaultInsulin = ["6", "4", "5"]
-            for i in range(3):
+            defaultInsulin = ["6", "4", "4", "6"]
+            for i in range(4):
                 self.lineEditDefaultInsulin.append(QLineEdit(defaultInsulin[i]))
                 self.lineEditDefaultInsulin[i].setFont(self.fontNormal)
+                self.lineEditDefaultInsulin[i].textEdited.connect(self.pushButtonPlanSendenDisable)
                 labelIe.append(QLabel("IE"))
                 labelIe[i].setFont(self.fontNormal)
             labelAnzahlBlutzuckerereichsstufen = QLabel("Anzahl Blutzuckerbereichsstufen")
             labelAnzahlBlutzuckerereichsstufen.setFont(self.fontNormal)
             self.lineEditAnzahlBlutzuckerbereichsstufen = QLineEdit("8")
             self.lineEditAnzahlBlutzuckerbereichsstufen.setFont(self.fontNormal)
+            self.lineEditAnzahlBlutzuckerbereichsstufen.textEdited.connect(self.pushButtonPlanSendenDisable)
             labelUntersteBereichsstufe = QLabel("Unterste Bereichsstufe")
             labelUntersteBereichsstufe.setFont(self.fontNormal)
             self.lineEditUntersteBereichsstufe = QLineEdit(defautlUntersteBereichsstufe)
             self.lineEditUntersteBereichsstufe.setFont(self.fontNormal)
+            self.lineEditUntersteBereichsstufe.textEdited.connect(self.pushButtonPlanSendenDisable)
             self.labelEinheitUntersteBereichsstufe = QLabel(self.blutzuckereinheit.value)
             self.labelEinheitUntersteBereichsstufe.setFont(self.fontNormal)
             labelBereichsstufengroesse = QLabel("Bereichsstufengröße")
             labelBereichsstufengroesse.setFont(self.fontNormal)
             self.lineEditBereichsstufengroesse = QLineEdit(defaultBereichsstufengröße)
             self.lineEditBereichsstufengroesse.setFont(self.fontNormal)
+            self.lineEditBereichsstufengroesse.textEdited.connect(self.pushButtonPlanSendenDisable)
             self.labelEinheitBereichsstufengroesse = QLabel(self.blutzuckereinheit.value)
             self.labelEinheitBereichsstufengroesse.setFont(self.fontNormal)
             groupBoxBerechnungsparameter.setLayout(berechnungsparameterLayout)
@@ -477,10 +515,11 @@ class MainWindow(QMainWindow):
             berechnungsparameterLayout.addWidget(labelDefaultInsulin, 4, 0, 1, 1)
             tageszeitenLayout.addWidget(labelMorgens, 0, 0, 1, 2)
             tageszeitenLayout.addWidget(labelMittags, 0, 2, 1, 2)
-            tageszeitenLayout.addWidget(labelAbends, 0, 4, 1, 2)
-            for i in range(3):
+            tageszeitenLayout.addWidget(labelNachmittags, 0, 4, 1, 2)
+            tageszeitenLayout.addWidget(labelAbends, 0, 6, 1, 2)
+            for i in range(4):
                 tageszeitenLayout.addWidget(self.doubleSpinBoxBeFaktoren[i], 1, i * 2, 1, 2)
-            for i in range(3):
+            for i in range(4):
                 tageszeitenLayout.addWidget(self.lineEditDefaultInsulin[i], 2, i * 2, 1, 1)
                 tageszeitenLayout.addWidget(labelIe[i], 2, i * 2 + 1, 1, 1)
             berechnungsparameterLayout.addLayout(tageszeitenLayout, 2, 1, 3, 2)
@@ -494,6 +533,7 @@ class MainWindow(QMainWindow):
             berechnungsparameterLayout.addWidget(self.labelEinheitBereichsstufengroesse, 7, 2, 1, 1)
 
             # Groupbox Mahlzeiteninsulin
+            defaultSae = "15"
             groupBoxMahlzeiteninsulin = QGroupBox("Mahlzeiteninsulin")
             groupBoxMahlzeiteninsulin.setFont(self.fontBold)
             mahlzeiteninsulinLayout = QGridLayout()
@@ -501,9 +541,40 @@ class MainWindow(QMainWindow):
             labelMiName.setFont(self.fontNormal)
             self.lineEditMiName = QLineEdit()
             self.lineEditMiName.setFont(self.fontNormal)
+            self.lineEditMiName.textEdited.connect(self.pushButtonPlanSendenDisable)
+            groupBoxSea = QGroupBox("Spritz-Ess-Abstand")
+            groupBoxSea.setFont(self.fontNormal)
+            groupBoxSeaLayout = QGridLayout()
+            self.radioButtonSaeKonstant = QRadioButton("Konstant [min]")
+            self.radioButtonSaeKonstant.setFont(self.fontNormal)
+            self.radioButtonSaeKonstant.setChecked(True)
+            self.radioButtonSaeKonstant.clicked.connect(self.radioButtonSaeClicked)
+            self.radioButtonSaeKonstant.toggled.connect(self.pushButtonPlanSendenDisable)
+            self.radioButtonSaeAbhaengig = QRadioButton("Abhängig vom Blutzuckerbereich")
+            self.radioButtonSaeAbhaengig.setFont(self.fontNormal)
+            self.radioButtonSaeAbhaengig.clicked.connect(self.radioButtonSaeClicked)
+            self.radioButtonSaeAbhaengig.toggled.connect(self.pushButtonPlanSendenDisable)
+            self.pushButtonSaeAbhaengig = QPushButton("Spritz-Ess-Abstände festlegen")
+            self.pushButtonSaeAbhaengig.setFont(self.fontNormal)
+            self.pushButtonSaeAbhaengig.setEnabled(False)
+            self.pushButtonSaeAbhaengig.clicked.connect(self.pushButtonSaeAbhaengigClicked)
+            groupBoxSeaLayout.addWidget(self.radioButtonSaeKonstant, 0, 0, 1, 1)
+            buttonGroupSeaKonstant = QButtonGroup(self)
+            self.radioButtonSea= []
+            for saeNummer in range(len(dialogSpritzEssAbstand.abstaende)):
+                self.radioButtonSea.append(QRadioButton(dialogSpritzEssAbstand.abstaende[saeNummer]))
+                self.radioButtonSea[len(self.radioButtonSea) - 1].setFont(self.fontNormal)
+                self.radioButtonSea[len(self.radioButtonSea) - 1].clicked.connect(lambda checked = False, sea = dialogSpritzEssAbstand.abstaende[saeNummer]: self.radioButtonSeaClicked(checked, sea))
+                buttonGroupSeaKonstant.addButton(self.radioButtonSea[len(self.radioButtonSea) - 1])
+                self.radioButtonSea[len(self.radioButtonSea) - 1].toggled.connect(self.pushButtonPlanSendenDisable)
+                groupBoxSeaLayout.addWidget(self.radioButtonSea[len(self.radioButtonSea) - 1], 0, 1 + saeNummer, 1, 1)
+            groupBoxSeaLayout.addWidget(self.radioButtonSaeAbhaengig, 1, 0, 1, 1)
+            groupBoxSeaLayout.addWidget(self.pushButtonSaeAbhaengig, 1, 1, 1, len(dialogSpritzEssAbstand.abstaende))
+            groupBoxSea.setLayout(groupBoxSeaLayout)
             groupBoxMahlzeiteninsulin.setLayout(mahlzeiteninsulinLayout)
             mahlzeiteninsulinLayout.addWidget(labelMiName, 0, 0)
             mahlzeiteninsulinLayout.addWidget(self.lineEditMiName, 0, 1)
+            mahlzeiteninsulinLayout.addWidget(groupBoxSea, 1, 0, 1, 2)
 
             # Groupbox Basalinsulin
             groupBoxBasalinsulin = QGroupBox("Basalinsulin")
@@ -513,16 +584,19 @@ class MainWindow(QMainWindow):
             labelBiName.setFont(self.fontNormal)
             self.lineEditBiName = QLineEdit()
             self.lineEditBiName.setFont(self.fontNormal)
+            self.lineEditBiName.textChanged.connect(self.pushButtonPlanSendenDisable)
             labelBiDosis = QLabel("Dosis")
             labelBiDosis.setFont(self.fontNormal)
             self.lineEditBiDosis = QLineEdit()
             self.lineEditBiDosis.setFont(self.fontNormal)
+            self.lineEditBiDosis.textChanged.connect(self.pushButtonPlanSendenDisable)
             labelBiEinheit = QLabel("IE")
             labelBiEinheit.setFont(self.fontNormal)
             labelBiVerabreichungsintervall = QLabel("Verabreichungsintervall")
             labelBiVerabreichungsintervall.setFont(self.fontNormal)
             self.comboBoxVerabreichung = QComboBox()
             self.comboBoxVerabreichung.setFont(self.fontNormal)
+            self.comboBoxVerabreichung.currentTextChanged.connect(self.pushButtonPlanSendenDisable)
             for v in class_enums.Verabreichungsintervall:
                 self.comboBoxVerabreichung.addItem(v.value)
             self.comboBoxVerabreichung.setCurrentIndex(0)
@@ -530,10 +604,13 @@ class MainWindow(QMainWindow):
             buttonGroupMoMiAb = QButtonGroup(self)
             self.radioButtonMorgens = QRadioButton("morgens")
             self.radioButtonMorgens.setFont(self.fontNormal)
+            self.radioButtonMorgens.toggled.connect(self.pushButtonPlanSendenDisable)
             self.radioButtonMittags = QRadioButton("mittags")
             self.radioButtonMittags.setFont(self.fontNormal)
+            self.radioButtonMittags.toggled.connect(self.pushButtonPlanSendenDisable)
             self.radioButtonAbends = QRadioButton("abends")
             self.radioButtonAbends.setFont(self.fontNormal)
+            self.radioButtonAbends.toggled.connect(self.pushButtonPlanSendenDisable)
             self.radioButtonMorgens.setChecked(True)
             buttonGroupMoMiAb.addButton(self.radioButtonMorgens)
             buttonGroupMoMiAb.addButton(self.radioButtonMittags)
@@ -558,9 +635,11 @@ class MainWindow(QMainWindow):
             self.radioButtonEinheitMg = QRadioButton(class_enums.Blutzuckereinheit.MG_DL.value)
             self.radioButtonEinheitMg.setFont(self.fontNormal)
             self.radioButtonEinheitMg.clicked.connect(self.radioButtonEinheitClicked)
+            self.radioButtonEinheitMg.toggled.connect(self.pushButtonPlanSendenDisable)
             self.radioButtonEinheitMmol = QRadioButton(class_enums.Blutzuckereinheit.MMOL_L.value)
             self.radioButtonEinheitMmol.setFont(self.fontNormal)
             self.radioButtonEinheitMmol.clicked.connect(self.radioButtonEinheitClicked)
+            self.radioButtonEinheitMmol.toggled.connect(self.pushButtonPlanSendenDisable)
             if self.blutzuckereinheit == class_enums.Blutzuckereinheit.MG_DL:
                 self.radioButtonEinheitMg.setChecked(True)
             else:
@@ -582,12 +661,18 @@ class MainWindow(QMainWindow):
             self.pushButtonSenden.setFixedSize(QSize(200, 40))
             self.pushButtonSenden.setEnabled(False)
             self.pushButtonSenden.clicked.connect(self.pushButtonSendenClicked) # type: ignore
+            self.checkBoxOhneNachmittags = QCheckBox("Keine Nachmittags-Spalte")
+            self.checkBoxOhneNachmittags.setFont(self.fontNormal)
+            self.checkBoxOhneSea = QCheckBox("Keine Spritz-Ess-Abstand-Spalte")
+            self.checkBoxOhneSea.setFont(self.fontNormal)
             self.pushButtonVorlageSpeichern = QPushButton("Als Vorlage speichern...")
             self.pushButtonVorlageSpeichern.setFixedSize(200,40)
             self.pushButtonVorlageSpeichern.clicked.connect(self.pushButtonVorlageSpeichernClicked) # type: ignore
             buttonLayout.addWidget(self.pushButtonVorschau, 0, 0)
             buttonLayout.addWidget(self.pushButtonSenden, 0, 1)
-            buttonLayout.addWidget(self.pushButtonVorlageSpeichern, 1, 0, 1, 2, Qt.AlignmentFlag.AlignCenter)
+            buttonLayout.addWidget(self.pushButtonVorlageSpeichern, 0, 2)
+            buttonLayout.addWidget(self.checkBoxOhneNachmittags, 1, 0)
+            buttonLayout.addWidget(self.checkBoxOhneSea, 1, 1, 1, 2)
 
             # Groupbox PatientIn
             patientLayout = QGridLayout()
@@ -784,6 +869,46 @@ class MainWindow(QMainWindow):
         else:
             sys.exit()
 
+    def radioButtonSaeClicked(self, checked):
+        if self.radioButtonSaeKonstant.isChecked():
+            self.pushButtonSaeAbhaengig.setEnabled(False)
+            for saeNummer in range(len(dialogSpritzEssAbstand.abstaende)):
+                self.radioButtonSea[saeNummer].setEnabled(True)
+        else:
+            self.pushButtonSaeAbhaengig.setEnabled(True)
+            for saeNummer in range(len(dialogSpritzEssAbstand.abstaende)):
+                self.radioButtonSea[saeNummer].setEnabled(False)
+
+    def pushButtonSaeAbhaengigClicked(self, checked):
+        kommazahlPattern = r"^\d+([,.]\d+)?$"
+        zahlPattern = r"^\d+$"
+        fehler = []
+        if re.match(zahlPattern, self.lineEditAnzahlBlutzuckerbereichsstufen.text()) == None:
+            fehler.append("Anzahl Bereichsstufen ungültig")
+        if re.match(kommazahlPattern, self.lineEditUntersteBereichsstufe.text()) == None:
+            fehler.append("Unterste Bereichsstufe ungültig")
+        if re.match(kommazahlPattern, self.lineEditBereichsstufengroesse.text()) == None:
+            fehler.append("Bereichsstufengröße ungültig")
+        if len(fehler) == 0:
+            dsea = dialogSpritzEssAbstand.SpritzEssAbstand(self.lineEditUntersteBereichsstufe.text(), self.lineEditBereichsstufengroesse.text(), self.lineEditAnzahlBlutzuckerbereichsstufen.text(), self.blutzuckereinheit, self.seaListe)
+            if dsea.exec() == 1:
+                seaListeKopie = self.seaListe.copy()
+                self.seaListe.clear()
+                self.seaListe.append(seaListeKopie[0])
+                for rbg in range(len(dsea.radioButtonSeaGroup)):
+                    for seaNummer in range(len(dialogSpritzEssAbstand.abstaende)):
+                        tempRb = dsea.radioButtonSea[seaNummer + len(dialogSpritzEssAbstand.abstaende) * rbg]
+                        if tempRb.isChecked():
+                            self.seaListe.append(dialogSpritzEssAbstand.abstaende[seaNummer])
+                self.pushButtonPlanSendenDisable()
+        else:
+            fehlerliste = "\n- " + "\n- ".join(fehler)
+            mb = QMessageBox(QMessageBox.Icon.Information, "Hinweis von InsuGDT", "Formularfehler:" + fehlerliste, QMessageBox.StandardButton.Ok)
+            mb.exec()
+
+    def radioButtonSeaClicked(self, checked, sea):
+        self.seaListe[0] = sea
+
     def pushButtonVorausgefuelltClicked(self, checked, pfad):
         self.setPreFormularXml(pfad)
 
@@ -857,7 +982,10 @@ class MainWindow(QMainWindow):
             logger.logger.info("Statusmessage: " + message)
 
     def pushButtonPlanSendenDisable(self):
-        self.pushButtonSenden.setEnabled(False)
+        try:
+            self.pushButtonSenden.setEnabled(False)
+        except:
+            pass
     
     def formularPruefen(self):
         """
@@ -873,11 +1001,11 @@ class MainWindow(QMainWindow):
             fehler.append("Blutzuckerziel ungültig")
         if re.match(kommazahlPattern, self.lineEditKorrektur.text())== None:
             fehler.append("Korrektur ungültig")
-        for i in range(3):
+        for i in range(4):
             if re.match(befaktorPattern, str(self.doubleSpinBoxBeFaktoren[i].value())) == None:
                 fehler.append("BE-Faktoren ungültig")
                 break
-        for i in range(3):
+        for i in range(4):
             if re.match(zahlPattern, self.lineEditDefaultInsulin[i].text()) == None:
                 fehler.append("Insulindosen bei normalem Blutzucker ungültig")
                 break
@@ -929,15 +1057,19 @@ class MainWindow(QMainWindow):
         morgensElement.text = str(self.doubleSpinBoxBeFaktoren[0].value()).replace(",", ".")
         mittagsElement = ElementTree.Element("mittags")
         mittagsElement.text = str(self.doubleSpinBoxBeFaktoren[1].value()).replace(",", ".")
+        nachmittagsElement = ElementTree.Element("nachmittags")
+        nachmittagsElement.text = str(self.doubleSpinBoxBeFaktoren[2].value()).replace(",", ".")
         abendsElement = ElementTree.Element("abends")
-        abendsElement.text = str(self.doubleSpinBoxBeFaktoren[2].value()).replace(",", ".")
+        abendsElement.text = str(self.doubleSpinBoxBeFaktoren[3].value()).replace(",", ".")
         defaultInsulinElement = ElementTree.Element("defaultinsulin")
         morgensElementInsulin = ElementTree.Element("morgens")
         morgensElementInsulin.text = self.lineEditDefaultInsulin[0].text()
         mittagsElementInsulin = ElementTree.Element("mittags")
         mittagsElementInsulin.text = self.lineEditDefaultInsulin[1].text()
+        nachmittagsElementInsulin = ElementTree.Element("nachmittags")
+        nachmittagsElementInsulin.text = self.lineEditDefaultInsulin[2].text()
         abendsElementInsulin = ElementTree.Element("abends")
-        abendsElementInsulin.text = self.lineEditDefaultInsulin[2].text()
+        abendsElementInsulin.text = self.lineEditDefaultInsulin[3].text()
         anzahlblutzuckerbereichsstufenElement = ElementTree.Element("anzahlblutzuckerbereichsstufen")
         anzahlblutzuckerbereichsstufenElement.text = self.lineEditAnzahlBlutzuckerbereichsstufen.text()
         untersteblutzuckerstufeElement = ElementTree.Element("untersteblutzuckerstufe")
@@ -946,9 +1078,11 @@ class MainWindow(QMainWindow):
         bereichsstufengroesseElement.text = self.lineEditBereichsstufengroesse.text()
         befaktorenElement.append(morgensElement)
         befaktorenElement.append(mittagsElement)
+        befaktorenElement.append(nachmittagsElement)
         befaktorenElement.append(abendsElement)
         defaultInsulinElement.append(morgensElementInsulin)
         defaultInsulinElement.append(mittagsElementInsulin)
+        defaultInsulinElement.append(nachmittagsElementInsulin)
         defaultInsulinElement.append(abendsElementInsulin)
         berechnungsparameterElement.append(blutzuckerzielElement)
         berechnungsparameterElement.append(korrekturElement)
@@ -961,6 +1095,12 @@ class MainWindow(QMainWindow):
         mahlzeiteninsulinElement = ElementTree.Element("mahlzeiteninsulin")
         nameMElement = ElementTree.Element("name")
         nameMElement.text = self.lineEditMiName.text()
+        spritzessabstandElement = ElementTree.Element("spritzessabstand")
+        modus = "konstant" # ab 1.3.0
+        if self.radioButtonSaeAbhaengig.isChecked():
+            modus = "abhaengig"
+        spritzessabstandElement.set("modus", modus)
+        spritzessabstandElement.text = str.join("::", self.seaListe)
         basalinsulinElement = ElementTree.Element("basalinsulin")
         nameBElement = ElementTree.Element("name")
         nameBElement.text = self.lineEditBiName.text()
@@ -976,6 +1116,7 @@ class MainWindow(QMainWindow):
         else:
             moMiAbElement.text = "abends"
         mahlzeiteninsulinElement.append(nameMElement)
+        mahlzeiteninsulinElement.append(spritzessabstandElement)
         basalinsulinElement.append(nameBElement)
         basalinsulinElement.append(dosisElement)
         basalinsulinElement.append(verabreichungsintervallElement)
@@ -983,15 +1124,19 @@ class MainWindow(QMainWindow):
         insulinplanElement.append(berechnungsparameterElement)
         insulinplanElement.append(mahlzeiteninsulinElement)
         insulinplanElement.append(basalinsulinElement)
+        if self.checkBoxOhneNachmittags.isChecked():
+            insulinplanElement.set("ohnenachmittags", "True")
+        if self.checkBoxOhneSea.isChecked():
+            insulinplanElement.set("ohnesea", "True")
         return insulinplanElement
 
     def getInsulinplan(self):
         blutzuckerziel = float(self.lineEditBlutzuckerziel.text().replace(",", "."))
         befaktoren = []
-        for i in range(3):
+        for i in range(4):
             befaktoren.append(self.doubleSpinBoxBeFaktoren[i].value())
         defaultinsulinmengen = []
-        for i in range(3):
+        for i in range(4):
             defaultinsulinmengen.append(float(self.lineEditDefaultInsulin[i].text()))
         korrektur = float(self.lineEditKorrektur.text().replace(",", "."))
         einheit = self.blutzuckereinheit
@@ -1037,11 +1182,35 @@ class MainWindow(QMainWindow):
                 text += "<div style='text-align:left;margin-top:20px'><b>Basalinsulin:</b><br />" + self.lineEditBiName.text() + ": " + self.lineEditBiDosis.text() + " IE " + intervall + insulinplan.getMoMiAb().value + "</div>"
                 text += "<div style='text-align:left;margin-top:20px'><b>Mahlzeiteninsulin:</b><br />" + self.lineEditMiName.text() + " (siehe Tabelle):</div>"
                 text += "<table class='insulinplan'>"
-                text += "<tr><td><b>Blutzucker</b></td><td class='zentriert'><b>Morgens [IE]</b></td><td class='zentriert'><b>Mittags [IE]</b></td><td class='zentriert'><b>Abends [IE]</b></td><td><b style='font-style:italic'>Summe [IE]<sup>*</sup></i></td></tr>"
+                if not self.checkBoxOhneNachmittags.isChecked() and not self.checkBoxOhneSea.isChecked():
+                    text += "<tr><td><b>Blutzucker<br />[" + self.blutzuckereinheit.value + "]</b></td><td class='zentriert'><b>Morgens<br />[IE]</b></td><td class='zentriert'><b>Mittags<br />[IE]</b></td><td class='zentriert'><b>Nachmittags<br />[IE]</b></td><td class='zentriert'><b>Abends<br />[IE]</b></td><td class='zentriert'><b>SEA<sup>*</sup><br />[min]</b></td></tr>"
+                elif self.checkBoxOhneNachmittags.isChecked() and not self.checkBoxOhneSea.isChecked():
+                    text += "<tr><td><b>Blutzucker<br />[" + self.blutzuckereinheit.value + "]</b></td><td class='zentriert'><b>Morgens<br />[IE]</b></td><td class='zentriert'><b>Mittags<br />[IE]</b></td><td class='zentriert'><b>Abends<br />[IE]</b></td><td class='zentriert'><b>SEA<sup>*</sup><br />[min]</b></td></tr>"
+                elif not self.checkBoxOhneNachmittags.isChecked() and self.checkBoxOhneSea.isChecked():
+                    text += "<tr><td><b>Blutzucker<br />[" + self.blutzuckereinheit.value + "]</b></td><td class='zentriert'><b>Morgens<br />[IE]</b></td><td class='zentriert'><b>Mittags<br />[IE]</b></td><td class='zentriert'><b>Nachmittags<br />[IE]</b></td><td class='zentriert'><b>Abends<br />[IE]</b></td></tr>"
+                else:
+                    text += "<tr><td><b>Blutzucker<br />[" + self.blutzuckereinheit.value + "]</b></td><td class='zentriert'><b>Morgens<br />[IE]</b></td><td class='zentriert'><b>Mittags<br />[IE]</b></td><td class='zentriert'><b>Abends<br />[IE]</b></td></tr>"
+                sea = ""
+                zeilennummer = 0
                 for zeile in insulinplan.getZeilen():
-                    text += "<tr><td>" + zeile[0] + "</td><td class='zentriert'>" + str(zeile[1][0]).replace(".", ",") + "</td><td class='zentriert'>" + str(zeile[1][1]).replace(".", ",") + "</td><td class='zentriert'>" + str(zeile[1][2]).replace(".", ",") + "</td><td class='zentriert'><i>" + str(zeile[2]) + "</i></td></tr>"
+                    if self.radioButtonSaeKonstant.isChecked():
+                        sea = self.seaListe[0]
+                    else:
+                        sea = self.seaListe[zeilennummer + 1]
+                    if not self.checkBoxOhneNachmittags.isChecked() and not self.checkBoxOhneSea.isChecked():
+                        text += "<tr><td>" + zeile[0] + "</td><td class='zentriert'>" + str(zeile[1][0]).replace(".", ",") + "</td><td class='zentriert'>" + str(zeile[1][1]).replace(".", ",") + "</td><td class='zentriert'>" + str(zeile[1][2]).replace(".", ",") + "</td><td class='zentriert'>" + str(zeile[1][3]).replace(".", ",") + "</td><td class='zentriert'>" + sea + "</td></tr>"
+                    elif self.checkBoxOhneNachmittags.isChecked() and not self.checkBoxOhneSea.isChecked():
+                        text += "<tr><td>" + zeile[0] + "</td><td class='zentriert'>" + str(zeile[1][0]).replace(".", ",") + "</td><td class='zentriert'>" + str(zeile[1][1]).replace(".", ",") + "</td><td class='zentriert'>" + str(zeile[1][3]).replace(".", ",") + "</td><td class='zentriert'>" + sea + "</td></tr>"
+                    elif not self.checkBoxOhneNachmittags.isChecked() and self.checkBoxOhneSea.isChecked():
+                        text += "<tr><td>" + zeile[0] + "</td><td class='zentriert'>" + str(zeile[1][0]).replace(".", ",") + "</td><td class='zentriert'>" + str(zeile[1][1]).replace(".", ",") + "</td><td class='zentriert'>" + str(zeile[1][2]).replace(".", ",") + "</td><td class='zentriert'>" + str(zeile[1][3]).replace(".", ",") + "</td></tr>"
+                    else: 
+                        text += "<tr><td>" + zeile[0] + "</td><td class='zentriert'>" + str(zeile[1][0]).replace(".", ",") + "</td><td class='zentriert'>" + str(zeile[1][1]).replace(".", ",") + "</td><td class='zentriert'>" + str(zeile[1][3]).replace(".", ",") + "</td></tr>"
+                    zeilennummer += 1
                 text += "</table>"
-                text += "<br /><sup>*</sup> Erscheint nicht auf dem Ausdruck"
+                if not self.checkBoxOhneSea.isChecked():
+                    text += "<br /><sup>*</sup> Spritz-Ess-Abstand (zeitlicher Abstand zwischen Insulinspritze und nächster Mahlzeit)<br />"
+                text += "<br /><b>Hinweis:</b>"
+                text += "<br />Die angegebenen Insulindosen gelten nur bei kohlenhydrathaltigen Mahlzeiten<br />(z.B. süße Speisen/Getränke, Obst, Brot, Kartoffeln, Reis, Teigwaren, Mehlspeisen).</b>"
                 
                 self.textEditVorschau.clear()
                 self.textEditVorschau.setHtml(text)
@@ -1082,8 +1251,17 @@ class MainWindow(QMainWindow):
             pdf.set_font("Helvetica", "", 12)
             pdf.cell(0, 0, insulinplan.getMiName() + " (siehe Tabelle):", new_x="LMARGIN", new_y="NEXT")
             pdf.cell(0, 6, "", new_x="LMARGIN", new_y="NEXT")
-            titelzeile = ["Blutzucker [" + self.blutzuckereinheit.value + "]", "Morgens [IE]", "Mittags [IE]", "Abends [IE]"]
-            colWidths = (25,25,25,25)
+            titelzeile = ["Blutzucker\n[" + self.blutzuckereinheit.value + "]", "Morgens\n[IE]", "Mittags\n[IE]", "Nachmittags\n[IE]", "Abends\n[IE]", "SEA*\n[min]"]
+            colWidths = (20, 16, 16, 16, 16, 16)
+            if self.checkBoxOhneNachmittags.isChecked() and not self.checkBoxOhneSea.isChecked():
+                titelzeile = ["Blutzucker\n[" + self.blutzuckereinheit.value + "]", "Morgens\n[IE]", "Mittags\n[IE]", "Abends\n[IE]", "SEA*\n[min]"]
+                colWidths = (24, 19, 19, 19, 19)
+            elif not self.checkBoxOhneNachmittags.isChecked() and self.checkBoxOhneSea.isChecked():
+                titelzeile = ["Blutzucker\n[" + self.blutzuckereinheit.value + "]", "Morgens\n[IE]", "Mittags\n[IE]", "Nachmittags\n[IE]", "Abends\n[IE]"]
+                colWidths = (24, 19, 19, 19, 19)
+            elif self.checkBoxOhneNachmittags.isChecked() and self.checkBoxOhneSea.isChecked():
+                titelzeile = ["Blutzucker\n[" + self.blutzuckereinheit.value + "]", "Morgens\n[IE]", "Mittags\n[IE]", "Abends\n[IE]"]
+                colWidths = (25, 25, 25, 25)
             with pdf.table(v_align=enums.VAlign.T, line_height=2 * pdf.font_size, cell_fill_color=(230,230,230), cell_fill_mode="ROWS", col_widths=colWidths) as table: # type: ignore
                 pdf.set_font("Helvetica", "", 12)
                 row = table.row()
@@ -1094,11 +1272,29 @@ class MainWindow(QMainWindow):
                     else:
                         row.cell(text=titel, align="C")
                     i += 1
+                zeilennummer = 0
                 for zeile in insulinplan.getZeilen():
                     row = table.row()
                     row.cell(text=zeile[0])
-                    for i in range(3):
-                        row.cell(text=str(zeile[1][i]), align="C")
+                    for i in range(4):
+                        if i == 2 and self.checkBoxOhneNachmittags.isChecked():
+                            pass
+                        else:
+                            row.cell(text=str(zeile[1][i]), align="C")
+                    if self.radioButtonSaeKonstant.isChecked() and not self.checkBoxOhneSea.isChecked():
+                        row.cell(self.seaListe[0], align="C")
+                    elif not self.checkBoxOhneSea.isChecked():
+                        row.cell(self.seaListe[zeilennummer +1], align="C")
+                    zeilennummer+= 1
+            if not self.checkBoxOhneSea.isChecked():
+                pdf.cell(0, 10, "* Spritz-Ess-Abstand (zeitlicher Abstand zwischen Insulinspritze und nächster Mahlzeit)", new_x="LMARGIN", new_y="NEXT")
+            else:
+                pdf.cell(0, 4, "", new_x="LMARGIN", new_y="NEXT")
+            pdf.set_font("Helvetica", "B", 12)
+            pdf.cell(0, 6, "Hinweis:", new_x="LMARGIN", new_y="NEXT")
+            pdf.set_font("Helvetica", "", 12)
+            pdf.cell(0, 6, "Die angegebenen Insulindosen gelten nur bei kohlenhydrathaltigen Mahlzeiten", new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(0, 6, "(z. B. süße Speisen/Getränke, Obst, Brot, Kartoffeln, Reis, Teigwaren, Mehlspeisen).")
             pdf.set_y(-30)
             pdf.set_font("Helvetica", "I", 10)
             pdf.cell(0, 10, "Generiert von InsuGDT V" + self.version + " (\u00a9 GDT-Tools " + str(datetime.date.today().year) + ")", align="R")
@@ -1136,11 +1332,17 @@ class MainWindow(QMainWindow):
             gd.addZeile("6228", "Basalinsulin: " + insulinplan.getBiName() + ": " + str(insulinplan.getBiDosis()) + " IE " + intervall + insulinplan.getMoMiAb().value)
             gd.addZeile("6228", "Mahlzeiteninsulin: " + insulinplan.getMiName() + " (siehe Tabelle):")
             space = "          "
-            gd.addZeile("6228", "Blutzucker [" + self.blutzuckereinheit.value + "]" + space + "Morgens [IE]" + space + "Mittags [IE]" + space + "Abends [IE]")
+            if not self.checkBoxOhneNachmittags.isChecked():
+                gd.addZeile("6228", "Blutzucker [" + self.blutzuckereinheit.value + "]" + space + "Morgens [IE]" + space + "Mittags [IE]" + space + "Nachmittags [IE]" + space + "Abends [IE]")
+            else:
+                gd.addZeile("6228", "Blutzucker [" + self.blutzuckereinheit.value + "]" + space + "Morgens [IE]" + space + "Mittags [IE]" + space + "Abends [IE]")
             for zeile in insulinplan.getZeilen():
                 befundzeile = zeile[0]
-                for i in range(3):
-                    befundzeile += space + str(zeile[1][i])
+                for i in range(4):
+                    if i == 2 and self.checkBoxOhneNachmittags.isChecked():
+                        pass
+                    else:
+                        befundzeile += space + str(zeile[1][i])
                 gd.addZeile("6228", befundzeile)
             # GDT-Datei exportieren
             if not gd.speichern(self.gdtExportVerzeichnis + "/" + self.kuerzelpraxisedv + self.kuerzelinsugdt + ".gdt", self.zeichensatz):
