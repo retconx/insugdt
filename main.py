@@ -533,7 +533,7 @@ class MainWindow(QMainWindow):
             berechnungsparameterLayout.addWidget(self.labelEinheitBereichsstufengroesse, 7, 2, 1, 1)
 
             # Groupbox Mahlzeiteninsulin
-            defaultSae = "15"
+            self.seaListe = ["15"]
             groupBoxMahlzeiteninsulin = QGroupBox("Mahlzeiteninsulin")
             groupBoxMahlzeiteninsulin.setFont(self.fontBold)
             mahlzeiteninsulinLayout = QGridLayout()
@@ -560,7 +560,7 @@ class MainWindow(QMainWindow):
             self.pushButtonSaeAbhaengig.clicked.connect(self.pushButtonSaeAbhaengigClicked)
             groupBoxSeaLayout.addWidget(self.radioButtonSaeKonstant, 0, 0, 1, 1)
             buttonGroupSeaKonstant = QButtonGroup(self)
-            self.radioButtonSea= []
+            self.radioButtonSea = []
             for saeNummer in range(len(dialogSpritzEssAbstand.abstaende)):
                 self.radioButtonSea.append(QRadioButton(dialogSpritzEssAbstand.abstaende[saeNummer]))
                 self.radioButtonSea[len(self.radioButtonSea) - 1].setFont(self.fontNormal)
@@ -568,6 +568,7 @@ class MainWindow(QMainWindow):
                 buttonGroupSeaKonstant.addButton(self.radioButtonSea[len(self.radioButtonSea) - 1])
                 self.radioButtonSea[len(self.radioButtonSea) - 1].toggled.connect(self.pushButtonPlanSendenDisable)
                 groupBoxSeaLayout.addWidget(self.radioButtonSea[len(self.radioButtonSea) - 1], 0, 1 + saeNummer, 1, 1)
+            self.radioButtonSea[0].setChecked(True)
             groupBoxSeaLayout.addWidget(self.radioButtonSaeAbhaengig, 1, 0, 1, 1)
             groupBoxSeaLayout.addWidget(self.pushButtonSaeAbhaengig, 1, 1, 1, len(dialogSpritzEssAbstand.abstaende))
             groupBoxSea.setLayout(groupBoxSeaLayout)
